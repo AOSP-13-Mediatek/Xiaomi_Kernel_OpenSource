@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -41,6 +40,7 @@
 #include <video/mipi_display.h>
 #include <video/videomode.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
+#include <linux/completion.h>
 #if defined(CONFIG_MACH_MT6873)
 #include <linux/ratelimit.h>
 #endif
@@ -89,21 +89,6 @@ struct t_condition_wq {
 struct mtk_dsi_mgr {
 	struct mtk_dsi *master;
 	struct mtk_dsi *slave;
-};
-
-struct lcm {
-	struct device *dev;
-	struct drm_panel panel;
-	struct backlight_device *backlight;
-	struct gpio_desc *reset_gpio;
-
-	bool prepared;
-	bool enabled;
-
-	int error;
-	const char *panel_info;
-	u32 dynamic_fps;
-	u32 doze_brightness_state;
 };
 
 struct mi_dsi_panel_cfg {
@@ -156,6 +141,11 @@ struct mi_dsi_panel_cfg {
 
 	u32 panel_on_dimming_delay;
 
+	u32 dimming_state;
+
+	u32 dc_type;
+	u32 dc_threshold;
+
 	/* AOD Nolp code customized*/
 	bool aod_nolp_command_enabled;
 
@@ -166,14 +156,9 @@ struct mi_dsi_panel_cfg {
 	bool delay_before_fod_hbm_on;
 	bool delay_before_fod_hbm_off;
 
-	u32 dimming_state;
-
 	bool aod_bl_51ctl;
 	bool dfps_bl_ctrl;
 	u32 dfps_bl_threshold;
-
-	u32 dc_type;
-	u32 dc_threshold;
 	u32 brightness_clone;
 	u32 real_brightness_clone;
 	u32 max_brightness_clone;
@@ -193,8 +178,12 @@ struct mi_dsi_panel_cfg {
 	bool fod_hbm_flag;
 	bool normal_hbm_flag;
 	bool dc_flag;
-
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+	bool bl_wait_frame;
+	bool bl_enable;
+#endif
 	enum crc_mode crc_state;
+	enum gir_mode gir_state;
 };
 
 struct mtk_dsi {
@@ -208,11 +197,11 @@ struct mtk_dsi {
 	struct cmdq_pkt_buffer cmdq_buf;
 	struct drm_bridge *bridge;
 	struct phy *phy;
+	struct mutex dsi_lock;
+	void __iomem *regs;
 	bool is_slave;
 	struct mtk_dsi *slave_dsi;
 	struct mtk_dsi *master_dsi;
-
-	void __iomem *regs;
 
 	struct clk *engine_clk;
 	struct clk *digital_clk;
@@ -225,6 +214,7 @@ struct mtk_dsi {
 	unsigned int lanes;
 	struct videomode vm;
 	int clk_refcnt;
+	int  doze_state;
 	bool output_en;
 	bool doze_enabled;
 	u32 irq_data;
@@ -258,16 +248,14 @@ struct mtk_dsi {
 
 	bool mipi_hopping_sta;
 	bool panel_osc_hopping_sta;
-
 	bool fod_backlight_flag;
 	bool fod_hbm_flag;
 	bool normal_hbm_flag;
 	bool dc_flag;
 	bool doze_flag;
-	bool thermal_hbm_disabled;
-
-	int  doze_state;
-	struct mutex dsi_lock;
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+	struct completion bl_wait_completion;
+#endif
 
 	unsigned int data_phy_cycle;
 	/* for Panel Master dcs read/write */
@@ -306,11 +294,6 @@ typedef struct brightness_alpha {
 
 #define to_mtk_dsi(x)  container_of(x, struct mtk_dsi, conn)
 
-static inline struct lcm *panel_to_lcm(struct drm_panel *panel)
-{
-	return container_of(panel, struct lcm, panel);
-}
-
 bool dsi_panel_initialized(struct drm_panel *panel);
 struct mtk_panel_ext *mtk_dsi_get_panel_ext(struct mtk_ddp_comp *comp);
 void display_utc_time_marker(char *annotation);
@@ -333,6 +316,10 @@ int mi_dsi_panel_get_fps(struct mtk_dsi *dsi,
 
 int mi_dsi_panel_get_panel_info(struct mtk_dsi *dsi, char *buf);
 
+int dsi_panel_get_wpinfo_from_cmdline(char *buf, size_t size);
+
+int mi_panel_wpinfo_read(char *buf, size_t size);
+
 int mi_dsi_panel_set_disp_param(struct mtk_dsi *dsi, struct disp_feature_ctl *ctl);
 
 ssize_t mi_dsi_panel_get_disp_param(struct mtk_dsi *dsi,
@@ -350,10 +337,35 @@ int mi_dsi_panel_set_disp_param(struct mtk_dsi *dsi, struct disp_feature_ctl *ct
 
 ssize_t mi_dsi_panel_write_mipi_reg(char *buf);
 
+ssize_t mi_dsi_panel_enable_calib(struct mtk_dsi *dsi, char *buf);
+
+ssize_t mi_dsi_panel_get_calib_status(char *buf);
+
+ssize_t mi_dsi_panel_enable_gir(struct mtk_dsi *dsi, char *buf);
+
+ssize_t mi_dsi_panel_disable_gir(struct mtk_dsi *dsi, char *buf);
+
 ssize_t  mi_dsi_panel_read_mipi_reg(char *buf);
+
+ssize_t  mi_dsi_panel_read_mipi_reg_cp(char *exitbuf, char *enterbuf,  int read_buf_pos);
 
 int mi_dsi_panel_write_dsi_cmd(struct dsi_cmd_rw_ctl *ctl);
 
 bool is_backlight_set_skip(struct mtk_dsi *dsi, u32 bl_lvl);
+
+int mi_dsi_panel_get_max_brightness_clone(struct mtk_dsi *dsi,
+			u32 *max_brightness_clone);
+
+void mi_dsi_panel_mi_cfg_state_update(struct mtk_dsi *dsi, int power_state);
+
+void mi_disp_cfg_init(struct mtk_dsi *dsi);
+
+void  mi_dsi_panel_rewrite_enterDClut(char *exitDClut, char *enterDClut, int count);
+
+ssize_t mi_dsi_panel_read_and_update_dc_param(struct mtk_dsi *dsi);
+
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+bool is_backlight_set_block(struct mtk_dsi *dsi, u32 bl_lvl);
+#endif
 
 #endif /* _DSI_PANEL_MI_H_ */

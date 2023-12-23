@@ -225,9 +225,7 @@ static int g_opp_sb_idx_down[NUM_OF_OPP_IDX] = { 0 };
 static DEFINE_MUTEX(mt_gpufreq_lock);
 static DEFINE_MUTEX(mt_gpufreq_power_lock);
 static DEFINE_MUTEX(mt_gpufreq_limit_table_lock);
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-static spinlock_t mt_gpufreq_clksrc_parking_lock;
-#endif
+
 static void __iomem *g_apmixed_base;
 static void __iomem *g_mfg_base;
 static void __iomem *g_infracfg_base;
@@ -240,9 +238,6 @@ static void __iomem *g_infracfg_ao;
 static void __iomem *g_dbgtop;
 static void __iomem *g_sleep;
 static void __iomem *g_toprgu;
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-static void __iomem *g_topckgen;
-#endif
 
 u64 mt_gpufreq_get_shader_present(void)
 {
@@ -632,76 +627,17 @@ unsigned int mt_gpufreq_target(unsigned int request_idx,
 	return 0;
 }
 
-
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-void mt_gpufreq_clock_parking_lock(unsigned long *pFlags)
-{
-	spin_lock_irqsave(&mt_gpufreq_clksrc_parking_lock, *pFlags);
-}
-
-void mt_gpufreq_clock_parking_unlock(unsigned long *pFlags)
-{
-	spin_unlock_irqrestore(&mt_gpufreq_clksrc_parking_lock, *pFlags);
-}
-
-unsigned int mt_gpufreq_clock_parking(int clksrc)
-{
-	/*
-	 * This function will be called under the Interrupt-Handler,
-	 * so can't implement any mutex-lock behaviors
-	 * (that will result the sleep/schedule operations).
-	 */
-
-	gpufreq_pr_logbuf("%s, clksrc: %d\n", __func__, clksrc);
-
-	if (clksrc == CLOCK_MAIN) {
-		/* Switch to <&topckgen TOP_MFGPLL_CK>: 1150MHz */
-
-		/* clr reg bit [9:8] */
-		writel(0x00000300, g_topckgen + 0x68);
-
-		/* set reg bit [9:8] */
-		writel(0x00000100, g_topckgen + 0x64);
-
-		/* update bit [21] */
-		writel(0x00200000, g_topckgen + 0x04);
-	} else if (clksrc == CLOCK_SUB) {
-		/* Switch to <&topckgen TOP_MAINPLL_D5_D2>: 218MHz */
-
-		/* clr reg bit [9:8] */
-		writel(0x00000300, g_topckgen + 0x68);
-
-		/* set reg bit [9:8] */
-		writel(0x00000300, g_topckgen + 0x64);
-
-		/* update bit [21] */
-		writel(0x00200000, g_topckgen + 0x04);
-	} else if (clksrc == CLOCK_SUB2) {
-		/* Switch to <&clk26m>: 26MHz */
-
-		/* clr reg bit [9:8] */
-		writel(0x00000300, g_topckgen + 0x68);
-
-		/* set reg bit [9:8] */
-		//writel(0x00000000, g_topckgen + 0x64);
-
-		/* update bit [21] */
-		writel(0x00200000, g_topckgen + 0x04);
-	}
-
-	gpufreq_pr_debug("%s, clksrc: %d ... [Done]\n", __func__, clksrc);
-
-	return 0;
-}
-#endif
-
 void mt_gpufreq_set_timestamp(void)
 {
 	gpufreq_pr_debug("@%s\n", __func__);
 
-	/* write 1 into 0x13fb_f130 bit 0 to enable timestamp register */
-	/* timestamp will be used by clGetEventProfilingInfo*/
-	writel(0x00000001, g_mfg_base + 0x130);
+	/* timestamp will be used by clGetEventProfilingInfo
+	 * 0x13fb_f130
+	 * [0] : write 1 to enable timestamp register
+	 * [1] : 0: timer from internal module
+	 *     : 1: timer from soc
+	 */
+	writel(0x00000003, g_mfg_base + 0x130);
 }
 
 void mt_gpufreq_check_bus_idle(void)
@@ -2687,11 +2623,6 @@ static void __mt_gpufreq_clock_switch(unsigned int freq_new)
 	unsigned int dds, pll;
 	bool parking = false;
 
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-	int ret;
-	unsigned long flags;
-#endif
-
 	/*
 	 * MFGPLL_CON1[26:24] is POST DIVIDER
 	 * 3'b000 : /1  (POSDIV_POWER_1)
@@ -2716,17 +2647,9 @@ static void __mt_gpufreq_clock_switch(unsigned int freq_new)
 #endif
 
 	if (parking) {
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-		ret = clk_prepare_enable(g_clk->clk_mux);
-		if (ret)
-			gpufreq_pr_info("enable clk_mux(TOP_MUX_MFG) failed:%d\n", ret);
-
-		mt_gpufreq_clock_parking_lock(&flags);
-		mt_gpufreq_clock_parking(CLOCK_SUB);
-#else
 		/* mfgpll_ck to univpll_d3(416MHz) */
 		__mt_gpufreq_switch_to_clksrc(CLOCK_SUB);
-#endif
+
 		/*
 		 * MFGPLL_CON1[31:31] = MFGPLL_SDM_PCW_CHG
 		 * MFGPLL_CON1[26:24] = MFGPLL_POSDIV
@@ -2737,15 +2660,8 @@ static void __mt_gpufreq_clock_switch(unsigned int freq_new)
 		/* PLL spec */
 		udelay(20);
 
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-		mt_gpufreq_clock_parking(CLOCK_MAIN);
-		mt_gpufreq_clock_parking_unlock(&flags);
-
-		clk_disable_unprepare(g_clk->clk_mux);
-#else
 		/* univpll_d3(416MHz) to mfgpll_ck */
 		__mt_gpufreq_switch_to_clksrc(CLOCK_MAIN);
-#endif
 	} else {
 #ifdef CONFIG_MTK_FREQ_HOPPING
 		mt_dfs_general_pll(MFGPLL_FH_PLL, dds);
@@ -3115,7 +3031,7 @@ static void __mt_gpufreq_kick_pbm(int enable)
 	unsigned int power;
 	unsigned int cur_freq;
 	unsigned int cur_vgpu;
-	unsigned int found = 0;
+	bool found = 0;
 	int tmp_idx = -1;
 	int i;
 
@@ -3179,11 +3095,7 @@ static void __mt_gpufreq_init_table(void)
 	else if (segment_id == MT6893_SEGMENT)
 		g_segment_max_opp_idx = 0; // 886MHz
 
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-	g_segment_min_opp_idx = NUM_OF_OPP_IDX - 3;
-#else
 	g_segment_min_opp_idx = NUM_OF_OPP_IDX - 1;
-#endif
 
 	g_opp_table = kzalloc((NUM_OF_OPP_IDX)*sizeof(*opp_table), GFP_KERNEL);
 
@@ -3463,10 +3375,6 @@ static int __mt_gpufreq_init_clk(struct platform_device *pdev)
 		return PTR_ERR(g_clk->mtcmos_mfg_core7_8);
 	}
 
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-	spin_lock_init(&mt_gpufreq_clksrc_parking_lock);
-#endif
-
 	g_infracfg_base = __mt_gpufreq_of_ioremap("mediatek,infracfg", 0);
 	if (!g_infracfg_base) {
 		gpufreq_pr_info("@%s: ioremap failed at infracfg",
@@ -3541,15 +3449,6 @@ static int __mt_gpufreq_init_clk(struct platform_device *pdev)
 			__func__);
 		return -ENOENT;
 	}
-
-#if MT_GPUFREQ_SHADER_PWR_CTL_WA
-	// 0x10000000
-	g_topckgen = __mt_gpufreq_of_ioremap("mediatek,topckgen", 0);
-	if (!g_topckgen) {
-		gpufreq_pr_info("@%s: ioremap failed at topckgen\n", __func__);
-		return -ENOENT;
-	}
-#endif
 
 	return 0;
 }

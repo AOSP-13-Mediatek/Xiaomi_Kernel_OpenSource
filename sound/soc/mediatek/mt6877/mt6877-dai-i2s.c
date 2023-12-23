@@ -3,7 +3,6 @@
  *  MediaTek ALSA SoC Audio DAI I2S Control
  *
  *  Copyright (c) 2020 MediaTek Inc.
- *  Copyright (C) 2021 XiaoMi, Inc.
  *  Author: Eason Yen <eason.yen@mediatek.com>
  */
 
@@ -1247,11 +1246,12 @@ static const struct snd_soc_dapm_route mtk_dai_i2s_routes[] = {
 	{"I2S3_CH1", "DL5_CH1", "DL5"},
 	{"I2S3_CH2", "DL5_CH2", "DL5"},
 
+	{"I2S3_CH1", "DL7_CH1", "DL7"},
+	{"I2S3_CH2", "DL7_CH2", "DL7"},
+
 	{"I2S3_CH1", "DL8_CH1", "DL8"},
 	{"I2S3_CH2", "DL8_CH2", "DL8"},
 
-	{"I2S3_CH1", "DL7_CH1", "DL7"},
-	{"I2S3_CH2", "DL7_CH2", "DL7"},
 	{"I2S3", NULL, "I2S3_CH1"},
 	{"I2S3", NULL, "I2S3_CH2"},
 	{"I2S3", NULL, "I2S3_TINYCONN_CH1_MUX"},

@@ -35,15 +35,15 @@ ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_mcl)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_120hz_vdo_dphy_mcl)
-subdir-ccflags-y += -DMC50_LOAD
-endif
-
 ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_77t_mcl)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 
-ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_77t_120hz_vdo_dphy_mcl)
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_120hz_vdo_dphy_mcl)
+subdir-ccflags-y += -DMC50_LOAD
+endif
+
+ifeq ($(PROJECT_DTB_NAMES),mediatek/k6877v1_64_6gb_mcl)
 subdir-ccflags-y += -DMC50_LOAD
 endif
 

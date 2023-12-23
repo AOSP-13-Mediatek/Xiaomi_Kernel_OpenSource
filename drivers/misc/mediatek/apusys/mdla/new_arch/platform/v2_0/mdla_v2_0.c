@@ -104,6 +104,22 @@ static void mdla_plat_destroy_dump_cmdbuf(struct mdla_dev *mdla_device)
 	mutex_unlock(&mdla_device->cmd_buf_dmp_lock);
 }
 
+static bool mdla_check_cmd_valid(
+	uint64_t out_end,
+	struct command_entry *ce)
+{
+	uint64_t out_size;
+
+	if ((uint64_t)ce->kva == 0)
+		return false;
+	if (out_end < (uint64_t)ce->kva)
+		return -EINVAL;
+	out_size = out_end - (uint64_t)ce->kva;
+	if (out_size < ce->count*MREG_CMD_SIZE)
+		return false;
+	return true;
+}
+
 /**
  *  Dump command buffer(code buffer) for debug
  *  [Condition]
@@ -453,7 +469,7 @@ static int mdla_plat_dbgfs_usage(struct seq_file *s, void *data)
 	seq_puts(s, "\n---- Dump the last code buffer ----\n");
 	seq_printf(s, "echo [1|0] > /d/mdla/%s\n",
 				mdla_dbg_get_u32_node_str(FS_DUMP_CMDBUF));
-	seq_printf(s, "cat /d/mdla/%s\n", DBGFS_CMDBUF_NAME);
+	seq_printf(s, "cat /proc/mdla/%s\n", DBGFS_CMDBUF_NAME);
 
 	seq_puts(s, "\n---- Command timeout setting ----\n");
 	seq_printf(s, "echo [ms(dec)] > /d/mdla/%s\n",
@@ -713,6 +729,7 @@ int mdla_v2_0_init(struct platform_device *pdev)
 	cmd_cb->post_cmd_info       = mdla_plat_print_post_cmd_info;
 	cmd_cb->get_irq_num         = mdla_v2_0_get_irq_num;
 	cmd_cb->get_wait_time       = mdla_plat_get_wait_time;
+	cmd_cb->check_cmd_valid     = mdla_check_cmd_valid;
 
 	if (mdla_plat_sw_preemption_support()) {
 		cmd_cb->pre_cmd_handle          = mdla_plat_pre_cmd_handle_sw_sched;

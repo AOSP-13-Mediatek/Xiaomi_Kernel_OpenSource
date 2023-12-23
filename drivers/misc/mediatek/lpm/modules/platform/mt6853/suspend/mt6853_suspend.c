@@ -14,6 +14,7 @@
 #include <linux/cpumask.h>
 #include <linux/syscore_ops.h>
 #include <linux/suspend.h>
+#include <linux/timekeeping.h>
 #include <linux/rtc.h>
 #include <linux/hrtimer.h>
 #include <linux/timer.h>
@@ -42,7 +43,6 @@ struct md_sleep_status before_md_sleep_status;
 struct md_sleep_status after_md_sleep_status;
 struct cpumask s2idle_cpumask;
 struct mtk_lpm_model mt6853_model_suspend;
-
 
 void __attribute__((weak)) subsys_if_on(void)
 {
@@ -197,7 +197,7 @@ static void __mt6853_suspend_reflect(int type, int cpu,
 	printk_deferred("[name:spm&][%s:%d] - resume\n",
 			__func__, __LINE__);
 
-	/* do not call issuer when prepare fail */
+	/* skip calling issuer when prepare fail*/
 	if (mt6853_model_suspend.flag & MTK_LP_PREPARE_FAIL)
 		return;
 
@@ -263,14 +263,13 @@ int mt6853_suspend_s2idle_prepare_enter(int prompt, int cpu,
 
 	return ret;
 }
+
 void mt6853_suspend_s2idle_reflect(int cpu,
 					const struct mtk_lpm_issuer *issuer)
 {
 	if (cpumask_weight(&s2idle_cpumask) == num_online_cpus()) {
 		__mt6853_suspend_reflect(MTK_LPM_SUSPEND_S2IDLE,
 					 cpu, issuer);
-
-
 #ifdef CONFIG_PM_SLEEP
 		/* Notice
 		 * Fix the rcu_idle/timekeeping workaround later.
@@ -284,6 +283,7 @@ void mt6853_suspend_s2idle_reflect(int cpu,
 
 		if (mt6853_model_suspend.flag & MTK_LP_PREPARE_FAIL)
 			mt6853_model_suspend.flag &= (~MTK_LP_PREPARE_FAIL);
+
 #endif
 	}
 	cpumask_clear_cpu(cpu, &s2idle_cpumask);
@@ -294,6 +294,7 @@ void mt6853_suspend_s2idle_reflect(int cpu,
 	mt6853_model_suspend.op.prepare_enter = _enter;\
 	mt6853_model_suspend.op.prepare_resume = _resume;\
 	mt6853_model_suspend.op.reflect = _reflect; })
+
 
 
 struct mtk_lpm_model mt6853_model_suspend = {
@@ -345,6 +346,7 @@ static int mt6853_spm_suspend_pm_event(struct notifier_block *notifier,
 			tm.tm_hour, tm.tm_min, tm.tm_sec, ts.tv_nsec);
 		atomic_set(&in_sleep, 1);
 		for_each_online_cpu(i) {
+			timer_setup(&mtk_lpm_ac[i].timer, lpm_timer_callback, 0);
 			mtk_lpm_ac[i].timer.expires = jiffies + msecs_to_jiffies(5000);
 			add_timer_on(&mtk_lpm_ac[i].timer, i);
 		}
@@ -375,7 +377,6 @@ int __init mt6853_model_suspend_init(void)
 	int ret;
 
 	int suspend_type = mtk_lpm_suspend_type_get();
-	int i;
 
 	if (suspend_type == MTK_LPM_SUSPEND_S2IDLE) {
 		MT6853_SUSPEND_OP_INIT(mt6853_suspend_s2idle_prompt,
@@ -398,10 +399,6 @@ int __init mt6853_model_suspend_init(void)
 	if (ret) {
 		pr_debug("[name:spm&][SPM] Failed to register PM notifier.\n");
 		return ret;
-	}
-
-	for_each_online_cpu(i) {
-		timer_setup(&mtk_lpm_ac[i].timer, lpm_timer_callback, 0);
 	}
 #endif /* CONFIG_PM */
 

@@ -12,7 +12,7 @@ struct apusys_cmd_hnd;
 typedef int (*run_sync_t)(struct mdla_run_cmd_sync *cmd_data,
 				struct mdla_dev *mdla_info,
 				struct apusys_cmd_hnd *apusys_hd,
-				int priority);
+				uint32_t priority);
 
 typedef int (*ut_run_sync_t)(void *run_cmd, void *wait_cmd,
 				struct mdla_dev *mdla_info);
@@ -44,6 +44,10 @@ struct mdla_cmd_cb_func {
 	int (*wait_cmd_handle)(u32 core_id, struct command_entry *ce);
 	unsigned long (*get_wait_time)(u32 core_id);
 	int (*get_irq_num)(u32 core_id);
+
+	/* Check cmd is valid */
+	bool (*check_cmd_valid)(uint64_t out_end,
+		struct command_entry *ce);
 
 	/* HW error handing */
 	int (*wait_cmd_hw_detect)(u32 core_id);

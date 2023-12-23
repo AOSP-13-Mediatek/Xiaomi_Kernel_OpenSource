@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -20,21 +19,12 @@
 /*scp feature list*/
 struct scp_feature_tb feature_table[NUM_FEATURE_ID] = {
 /* VFFP:20 + default:5 */
-#ifdef CONFIG_MTK_VOW_DUAL_MIC_SUPPORT
-	{
-		.feature	= VOW_FEATURE_ID,
-		.freq		= 25,
-		.enable		= 0,
-		.sys_id		= SCPSYS_CORE1,
-	},
-#else
 	{
 		.feature	= VOW_FEATURE_ID,
 		.freq		= 5,
 		.enable		= 0,
 		.sys_id		= SCPSYS_CORE1,
 	},
-#endif
 	{
 		.feature	= SENS_FEATURE_ID,
 		.freq		= 29,
@@ -65,21 +55,12 @@ struct scp_feature_tb feature_table[NUM_FEATURE_ID] = {
 		.enable		= 0,
 		.sys_id		= SCPSYS_CORE0,
 	},
-#ifdef CONFIG_MTK_VOW_DUAL_MIC_SUPPORT
-	{
-		.feature	= VOW_BARGEIN_FEATURE_ID,
-		.freq		= 200,
-		.enable		= 0,
-		.sys_id		= SCPSYS_CORE1,
-	},
-#else
 	{
 		.feature        = VOW_BARGEIN_FEATURE_ID,
-		.freq           = 200,
+		.freq           = 120,
 		.enable         = 0,
 		.sys_id         = SCPSYS_CORE1,
 	},
-#endif
 	{
 		.feature	= VOW_DUMP_FEATURE_ID,
 		.freq		= 10,
@@ -101,6 +82,18 @@ struct scp_feature_tb feature_table[NUM_FEATURE_ID] = {
 	{
 		.feature        = VOW_VENDOR_G_FEATURE_ID,
 		.freq           = 22,
+		.enable         = 0,
+		.sys_id         = SCPSYS_CORE1,
+	},
+	{
+		.feature        = VOW_DUAL_MIC_FEATURE_ID,
+		.freq           = 20,
+		.enable         = 0,
+		.sys_id         = SCPSYS_CORE1,
+	},
+	{
+		.feature        = VOW_DUAL_MIC_BARGE_IN_FEATURE_ID,
+		.freq           = 135,
 		.enable         = 0,
 		.sys_id         = SCPSYS_CORE1,
 	},

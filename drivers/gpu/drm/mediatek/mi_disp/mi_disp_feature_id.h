@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -90,7 +89,7 @@ enum DISPPARAM_MODE  {
 	DISPPARAM_BACKLIGHT_SET = 0xC000000,
 	DISPPARAM_PANEL_ID_GET = 0xD000000,
 	DISPPARAM_DOZE_STATE = 0xE0000000,
-
+	
 	DISPPARAM_DFPS_LEVEL1          = 0x10000000,
 	DISPPARAM_DFPS_LEVEL2          = 0x20000000,
 	DISPPARAM_DFPS_LEVEL3          = 0x30000000,
@@ -100,5 +99,3 @@ enum DISPPARAM_MODE  {
 };
 
 #endif /* _DSI_MI_FEATURE_H_ */
-
-

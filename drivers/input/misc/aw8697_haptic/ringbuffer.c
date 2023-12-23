@@ -12,6 +12,8 @@
 #include <linux/errno.h>
 #include "ringbuffer.h"
 
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+
 #define BUFFER_SIZE (1024 * 8 + 1)
 
 struct rb {

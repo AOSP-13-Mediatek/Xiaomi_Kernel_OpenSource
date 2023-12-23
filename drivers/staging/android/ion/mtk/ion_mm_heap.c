@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2015 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -956,8 +955,13 @@ out:
 	end = sched_clock();
 	if (buffer->sg_table &&
 	    (buffer->sg_table->nents > 10 &&
+#if BITS_PER_LONG == 32
+	    (div_u64((end - start),
+	     buffer->sg_table->nents > 500000ULL)) ||
+#else
 	    ((end - start) /
 	     buffer->sg_table->nents > 500000ULL) ||
+#endif
 	    (end - start > 50000000ULL)))
 		IONMSG("warn: p(%d-%d) phys time:%lluns n:%u s:%zu\n",
 		       buffer_info->module_id,
@@ -1161,10 +1165,6 @@ static int ion_dump_all_share_fds(struct seq_file *s)
 	struct task_struct *p;
 	int res;
 	struct dump_fd_data data;
-
-	/* function is not available, just return */
-	if (ion_drv_file_to_buffer(NULL) == ERR_PTR(-EPERM))
-		return 0;
 
 	ION_DUMP(s,
 		 "%18s %9s %16s %5s %5s %16s %4s %8s %8s %8s %9s\n",
@@ -1989,7 +1989,7 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 		}
 
 		if ((int)buffer->heap->type == ION_HEAP_TYPE_MULTIMEDIA) {
-			struct ion_fb_buffer_info *buffer_info =
+			struct ion_mm_buffer_info *buffer_info =
 			    buffer->priv_virt;
 			enum ION_MM_CMDS mm_cmd = param.mm_cmd;
 
@@ -2032,6 +2032,14 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 			int domain_idx = ion_get_domain_id(
 				1, &param.config_buffer_param.module_id);
 			buffer_sec = buffer_info->security;
+			if (domain_idx < 0 ||
+			    (domain_idx >= DOMAIN_NUM &&
+			    domain_idx != MTK_GET_DOMAIN_IGNORE)) {
+				IONMSG("%s ION_FB_HEAP dom out of bound\n", __func__);
+				ret = -EINVAL;
+				ion_drv_put_kernel_handle(kernel_handle);
+				break;
+			}
 #ifndef CONFIG_MTK_IOMMU_V2
 			if (buffer_info->MVA[domain_idx] == 0) {
 #endif
@@ -2042,6 +2050,13 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 				buffer_info->coherent =
 				    param.config_buffer_param.coherent;
 				if (param.mm_cmd == ION_MM_CONFIG_BUFFER_EXT) {
+					if (domain_idx == MTK_GET_DOMAIN_IGNORE) {
+						IONMSG("%s GPU not support ION_FB_HEAP_EXT\n",
+						       __func__);
+						ret = -EINVAL;
+						ion_drv_put_kernel_handle(kernel_handle);
+						break;
+				}
 					buffer_info->iova_start[domain_idx] =
 				param.config_buffer_param.reserve_iova_start;
 					buffer_info->iova_end[domain_idx] =
@@ -2076,7 +2091,7 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 #endif
 		} else {
 			IONMSG
-			    (": Error. config buffer is not from %c heap.\n",
+			    (": Error. config buffer is not from %d heap.\n",
 			     buffer->heap->type);
 			ret = 0;
 		}
@@ -2167,10 +2182,32 @@ long ion_mm_ioctl(struct ion_client *client, unsigned int cmd,
 			param.get_phys_param.phy_addr = phy_addr;
 
 			mutex_unlock(&buffer->lock);
+		} else if (buffer_type == ION_HEAP_TYPE_MULTIMEDIA_SEC) {
+			struct ion_heap *sec_heap;
+			ion_phys_addr_t phy_addr;
+			size_t len;
+			struct ion_heap_ops *sec_ops;
+			int ret;
+
+			len = param.get_phys_param.len;
+			sec_heap = buffer->heap;
+			if (sec_heap->ops) {
+				sec_ops = sec_heap->ops;
+			} else {
+				IONMSG("%s #%d: buffer err\n",
+				       __func__, __LINE__);
+				ion_drv_put_kernel_handle(kernel_handle);
+				return -EFAULT;
+			}
+
+			mutex_lock(&buffer->lock);
+			ret = sec_ops->phys(sec_heap, buffer, &phy_addr, &len);
+			param.get_phys_param.phy_addr = phy_addr;
+			mutex_unlock(&buffer->lock);
 
 		} else {
 			IONMSG
-			    (": Error. get iova is not from %c heap.\n",
+			    (": Error. get iova is not from %d heap.\n",
 			     buffer->heap->type);
 			ret = -EFAULT;
 		}

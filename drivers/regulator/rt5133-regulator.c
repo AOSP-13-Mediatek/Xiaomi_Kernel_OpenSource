@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2020 Mediatek Technology Inc.
+ *  Copyright (C) 2021 Mediatek Technology Inc.
  *  Jeff_Chang <jeff_chang@richtek.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -30,6 +30,8 @@
 #if GENERIC_DEBUGFS
 #include <linux/debugfs.h>
 #endif /* GENERIC_DEBUGFS */
+
+#define RT5133_DRV_VERSION	"1.0.2_MTK"
 
 #define RT5133_REG_CHIP_INFO		0x00
 #define RT5133_REG_RST_CTRL		0x06
@@ -182,17 +184,20 @@ static int data_debug_show(struct seq_file *s, void *data)
 		d->data_buffer = buffer;
 		d->data_buffer_size = d->size;
 	}
+
 	/* read transfer */
 	if (!di->io_read)
 		return -EPERM;
 	ret = di->io_read(di->io_drvdata, d->reg, d->data_buffer, d->size);
 	if (ret < 0)
 		return ret;
+
 	pdata = d->data_buffer;
 	seq_puts(s, "0x");
 	for (i = 0; i < d->size; i++)
 		seq_printf(s, "%02x,", *(pdata + i));
 	seq_puts(s, "\n");
+
 	return 0;
 }
 
@@ -202,8 +207,8 @@ static int data_debug_open(struct inode *inode, struct file *file)
 }
 
 static ssize_t data_debug_write(struct file *file,
-		const char __user *user_buf,
-		size_t cnt, loff_t *loff)
+				const char __user *user_buf,
+				size_t cnt, loff_t *loff)
 {
 	struct seq_file *seq = file->private_data;
 	struct dbg_info *di = seq->private;
@@ -218,6 +223,7 @@ static ssize_t data_debug_write(struct file *file,
 	if (copy_from_user(buf, user_buf, cnt))
 		return -EFAULT;
 	buf[cnt] = 0;
+
 	/* buffer size check */
 	if (d->data_buffer_size < d->size) {
 		buffer = kzalloc(d->size, GFP_KERNEL);
@@ -227,6 +233,7 @@ static ssize_t data_debug_write(struct file *file,
 		d->data_buffer = buffer;
 		d->data_buffer_size = d->size;
 	}
+
 	/* data parsing */
 	cur = buf;
 	pdata = d->data_buffer;
@@ -240,6 +247,7 @@ static ssize_t data_debug_write(struct file *file,
 	}
 	if (val_cnt != d->size)
 		return -EINVAL;
+
 	/* write transfer */
 	if (!di->io_write)
 		return -EPERM;
@@ -281,8 +289,12 @@ static ssize_t lock_debug_read(struct file *file,
 	struct dbg_info *di = file->private_data;
 	struct dbg_internal *d = &di->internal;
 	char buf[10];
+	int ret;
 
-	snprintf(buf, sizeof(buf), "%d\n", mutex_is_locked(&d->io_lock));
+	ret = snprintf(buf, sizeof(buf), "%d\n", mutex_is_locked(&d->io_lock));
+	if (ret < 0)
+		return ret;
+
 	return simple_read_from_buffer(user_buf, cnt, loff, buf, strlen(buf));
 }
 
@@ -298,6 +310,7 @@ static ssize_t lock_debug_write(struct file *file,
 	ret = kstrtou32_from_user(user_buf, cnt, 0, &lock);
 	if (ret < 0)
 		return ret;
+
 	lock ? mutex_lock(&d->io_lock) : mutex_unlock(&d->io_lock);
 	return cnt;
 }
@@ -319,6 +332,7 @@ static int generic_debugfs_init(struct dbg_info *di)
 	d->data_buffer = kzalloc(PREALLOC_RBUFFER_SIZE, GFP_KERNEL);
 	if (!d->data_buffer)
 		return -ENOMEM;
+
 	/* create debugfs */
 	d->rt_root = debugfs_lookup("ext_dev_io", NULL);
 	if (!d->rt_root) {
@@ -327,6 +341,7 @@ static int generic_debugfs_init(struct dbg_info *di)
 			return -ENODEV;
 		d->rt_dir_create = true;
 	}
+
 	d->ic_root = debugfs_create_dir(di->dirname, d->rt_root);
 	if (!d->ic_root)
 		goto err_cleanup_rt;
@@ -345,6 +360,7 @@ static int generic_debugfs_init(struct dbg_info *di)
 		goto err_cleanup_ic;
 	mutex_init(&d->io_lock);
 	return 0;
+
 err_cleanup_ic:
 	debugfs_remove_recursive(d->ic_root);
 err_cleanup_rt:
@@ -439,7 +455,7 @@ static int rt5133_of_parse_cb(struct device_node *node,
 
 	for (i = 0; i < props_size; i++) {
 		int shift = ffs(props[i].mask) - 1, ret;
-		unsigned int val;
+		unsigned int val = 0;
 
 		ret = of_property_read_u32(node, props[i].prop_name, &val);
 		if (ret)
@@ -719,7 +735,6 @@ static const struct regmap_bus rt5133_regmap_bus = {
 static const struct regmap_config rt5133_regmap_config = {
 	.reg_bits = 8,
 	.val_bits = 8,
-
 	.max_register = RT5133_REG_LDO8_CTRL4,
 };
 
@@ -735,14 +750,12 @@ static int rt5133_chip_reset(struct rt5133_priv *priv)
 	/* Wait for register reset to take effect */
 	udelay(2);
 
-	/* Default to disable base current */
-	return regmap_update_bits(priv->regmap, RT5133_REG_BASE_CTRL,
-				  RT5133_FOFF_BASE_MASK, RT5133_FOFF_BASE_MASK);
+	return 0;
 }
 
 static int rt5133_validate_vendor_info(struct rt5133_priv *priv)
 {
-	unsigned int val;
+	unsigned int val = 0;
 	int ret;
 
 	ret = regmap_read(priv->regmap, RT5133_REG_CHIP_INFO, &val);
@@ -758,10 +771,10 @@ static int rt5133_validate_vendor_info(struct rt5133_priv *priv)
 void rt5133_register_interrupt_callback(enum RT5133_IRQ_NUM intno,
 					RT5133_IRQ_FUNC_PTR IRQ_FUNC_PTR)
 {
-	if (intno < RT5133_IRQ_MAX && intno >= 0)
+	if (intno < RT5133_IRQ_MAX && intno >= 0) {
 		rt5133_callback[intno] = IRQ_FUNC_PTR;
-
-	rt5133_callback[intno]();
+		rt5133_callback[intno]();
+	}
 }
 EXPORT_SYMBOL(rt5133_register_interrupt_callback);
 
@@ -777,13 +790,20 @@ static int rt5133_regulator_notify(struct notifier_block *nb,
 	int idx;
 
 	if (event != REGULATOR_EVENT_OVER_CURRENT &&
-		event != REGULATOR_EVENT_FAIL)
-		return NOTIFY_OK;
-	if (data != NULL) {
-		idx = *(int *)data;
-		pr_info("%s, ldo(%d), event = %d\n", __func__, idx, event);
-		idx = idx - 1;
+	    event != REGULATOR_EVENT_FAIL)
+		goto out;
+
+	if (data == NULL) {
+		pr_info("%s: data gets null pointer\n", __func__);
+		goto out;
 	}
+
+	idx = *(int *)data;
+	pr_info("%s, ldo(%d), event = %d\n", __func__, idx, (int)event);
+
+	idx = idx - 1;
+	if (idx < 0)
+		goto out;
 
 	switch (event) {
 	case REGULATOR_EVENT_OVER_CURRENT:
@@ -797,6 +817,8 @@ static int rt5133_regulator_notify(struct notifier_block *nb,
 	default:
 		break;
 	}
+
+out:
 	return NOTIFY_OK;
 }
 
@@ -809,7 +831,7 @@ static int rt5133_register_notifier(struct rt5133_priv *priv)
 
 	regulator_name = kcalloc(8, sizeof(char *),  GFP_KERNEL);
 	if (of_property_read_string_array(np, "regulator_nb", regulator_name, 8) < 0)
-		return -EINVAL;
+		goto err_read_property;
 
 	for (i = 0; i < 8; i++) {
 		rt5133_callback[i] = rt5133_callback[i+1] = NULL;
@@ -820,6 +842,7 @@ static int rt5133_register_notifier(struct rt5133_priv *priv)
 				regulator_name[i]);
 			goto err_get_regulator;
 		}
+
 		rt5133_nb[i].notifier_call = rt5133_regulator_notify;
 		ret = devm_regulator_register_notifier(regulator[i],
 						       &rt5133_nb[i]);
@@ -829,6 +852,7 @@ static int rt5133_register_notifier(struct rt5133_priv *priv)
 
 	kfree(regulator_name);
 	return 0;
+
 err_get_regulator:
 	if (i > 0) {
 		for (; i > 0; i--) {
@@ -837,6 +861,8 @@ err_get_regulator:
 							   &rt5133_nb[i]);
 		}
 	}
+
+err_read_property:
 	kfree(regulator_name);
 	return -EINVAL;
 }
@@ -847,7 +873,7 @@ static int rt5133_probe(struct i2c_client *i2c)
 	struct regulator_config config = {0};
 	int i, ret;
 
-	dev_info(&i2c->dev, "%s\n", __func__);
+	dev_info(&i2c->dev, "%s start(%s)\n", __func__, RT5133_DRV_VERSION);
 	priv = devm_kzalloc(&i2c->dev, sizeof(*priv), GFP_KERNEL);
 	if (!priv)
 		return -ENOMEM;
@@ -879,11 +905,11 @@ static int rt5133_probe(struct i2c_client *i2c)
 	priv->dbg_info.io_drvdata = priv->regmap;
 	priv->dbg_info.io_read = rt5133_dbg_io_read;
 	priv->dbg_info.io_write = rt5133_dbg_io_write;
+
 	ret = generic_debugfs_init(&priv->dbg_info);
 	if (ret < 0)
 		return ret;
 #endif /* GENERIC_DEBUGFS*/
-
 
 	ret = rt5133_validate_vendor_info(priv);
 	if (ret) {
@@ -959,3 +985,20 @@ module_i2c_driver(rt5133_driver);
 MODULE_AUTHOR("Jeff Chang <jeff_chang@richtek.com>");
 MODULE_DESCRIPTION("RT5133 Regulator Driver");
 MODULE_LICENSE("GPL v2");
+MODULE_VERSION(RT5133_DRV_VERSION);
+/*
+ * Release Note
+ * 1.0.2
+ * (1) Free regulator_name when read of_property failed to avoid memory leak
+ * (2) Check snprintf error return
+ * (3) Call rt5133_callback only when intno is in the valid range
+ * (4) Initialize idx and handle data == NULL or idx < 0 in rt5133_regulator_notify
+ * (5) Initialize val of regmap_read before using it
+ *
+ * 1.0.1
+ * (1) Add driver version description
+ * (2) Remove the force disabling of Base current at initialization
+ *
+ * 1.0.0
+ * (1) Initial released
+ */

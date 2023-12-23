@@ -11,7 +11,7 @@
  * GNU General Public License for more details.
  */
 
-#if IS_ENABLED(BUILD_MMDVFS)
+#if IS_ENABLED(BUILD_MMDVFS_PMQOS)
 #include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/kthread.h>
@@ -1041,6 +1041,11 @@ s32 mm_qos_set_request(struct mm_qos_request *req, u32 bw_value,
 	u32 comm, comm_port;
 	struct mm_qos_request *enum_req = NULL;
 	bool hrt_port = false;
+#if defined(USE_MEDIATEK_EMI)
+#if IS_ENABLED(CONFIG_MACH_MT6877)
+	s32 ddr_type = mtk_dramc_get_ddr_type();
+#endif
+#endif
 
 	if (!req)
 		return -EINVAL;
@@ -1170,7 +1175,16 @@ s32 mm_qos_set_request(struct mm_qos_request *req, u32 bw_value,
 		if (larb_req[larb].is_max_ostd)
 			req->ostd = max_ostd;
 	}
-
+#if defined(USE_MEDIATEK_EMI)
+#if IS_ENABLED(CONFIG_MACH_MT6877)
+	if (ddr_type == TYPE_LPDDR5) {
+		if (larb == 16 && port == 15)
+			req->ostd = 4;
+		if (larb == 17 && port == 15)
+			req->ostd = 4;
+	}
+#endif
+#endif
 	list_for_each_entry(enum_req, &(req->port_node), port_node)
 		enum_req->ostd = req->ostd;
 
@@ -2235,6 +2249,11 @@ int mmdvfs_qos_force_step(int step)
 		return -EINVAL;
 	}
 	force_step = step;
+#if defined(CONFIG_MACH_MT6785)
+#if (defined(CONFIG_MTK_MT6382_BDG) && defined(CONFIG_MTK_MT6382_VDO_MODE))
+	force_step = 0;
+#endif
+#endif
 	update_step(PM_QOS_NUM_CLASSES, -1);
 	return 0;
 }
@@ -2264,7 +2283,11 @@ void mmdvfs_autok_qos_enable(bool enable)
 {
 	pr_notice("%s: step_size=%d current_max_step=%d\n",
 		__func__, step_size, current_max_step);
-	if (!enable && step_size > 0 && current_max_step == STEP_UNREQUEST)
+	if (!enable && step_size > 0
+#ifndef AUTOK_FORCE_LOW
+		&& current_max_step == STEP_UNREQUEST
+#endif
+	)
 		mmdvfs_qos_force_step(step_size - 1);
 
 	mmdvfs_autok_enable = enable;
@@ -2850,7 +2873,7 @@ void mm_qos_update_all_request_zero(struct plist_head *owner_list)
 
 s32 mm_hrt_get_available_hrt_bw(u32 master_id)
 {
-	return 0;
+	return -1;
 }
 
 s32 mm_hrt_add_bw_throttle_notifier(struct notifier_block *nb)

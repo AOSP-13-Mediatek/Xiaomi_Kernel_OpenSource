@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -28,6 +27,7 @@
 #include <mtk_cooler_setting.h>
 #include <linux/debugfs.h>
 #include <mtk_cooler_mutt_gen97.h>
+
 
 /****************************************************************************
  *  Macro Definitions
@@ -57,6 +57,7 @@
 #endif
 
 /* State of "MD off & noIMS" are not included. */
+
 #define MAX_NUM_TX_PWR_LV  3
 
 #define MTK_CL_MUTT_GET_LIMIT(limit, state) \
@@ -112,6 +113,7 @@ static const struct file_operations clmutt_ ## name ## _proc_fops = {         \
 	.write	= clmutt_ ## name ## _proc_write,                             \
 }
 
+
 #if FEATURE_THERMAL_DIAG
 /*
  * use "si_code" for Action identify
@@ -135,6 +137,7 @@ enum {
 	 */
 	TM_CLIENT_clmutt = 3
 };
+
 
 /****************************************************************************
  *  Type Definitions

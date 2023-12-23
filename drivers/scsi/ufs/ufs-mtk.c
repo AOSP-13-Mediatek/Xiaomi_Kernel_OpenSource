@@ -816,10 +816,11 @@ static int ufs_mtk_setup_clocks(struct ufs_hba *hba, bool on,
 				goto out;
 
 			if (host && host->pm_qos_init) {
-				pm_qos_update_request(
+				if (hba->quirks & UFSHCD_QUIRK_UFS_HCI_PERF_HEURISTIC) {
+					pm_qos_update_request(
 					&host->req_mm_bandwidth,
 					5554);
-
+				}
 				pm_qos_update_request(
 					&host->req_cpu_dma_latency, 0);
 
@@ -1757,7 +1758,7 @@ void ufs_mtk_device_resume(struct ufs_hba *hba)
  * Expected/Submitted buffer structure is struct ufs_ioctl_ffu_data.
  * It will read the buffer information of new firmware.
  */
-int ufs_mtk_ioctl_ffu(struct scsi_device *dev, void __user *buf_user)
+int ufs_mtk_ioctl_ffu(struct scsi_device *dev, const void __user *buf_user)
 {
 	struct ufs_hba *hba = shost_priv(dev->host);
 	struct ufs_ioctl_ffu_data *idata = NULL;
@@ -1872,8 +1873,7 @@ out:
  * response in the buffer field while updating the used size in buf_length.
  */
 #if defined(CONFIG_UFSFEATURE)
-int ufsf_query_ioctl(struct ufsf_feature *ufsf, unsigned int lun,
-		     void __user *buffer,
+int ufsf_query_ioctl(struct ufsf_feature *ufsf, int lun, void __user *buffer,
 		     struct ufs_ioctl_query_data_hpb *ioctl_data, u8 selector);
 #endif
 int ufs_mtk_ioctl_query(struct ufs_hba *hba, u8 lun, void __user *buf_user)
@@ -2079,7 +2079,7 @@ out:
  * Expected/Submitted buffer structure is struct rpmb_cmd.
  * It will read/write data to rpmb
  */
-int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, void __user *buf_user)
+int ufs_mtk_ioctl_rpmb(struct ufs_hba *hba, const void __user *buf_user)
 {
 	struct rpmb_cmd cmd[3];
 	struct rpmb_frame *frame_buf = NULL;
@@ -2242,6 +2242,9 @@ void ufs_mtk_runtime_pm_init(struct scsi_device *sdev)
 
 static void ufs_mtk_device_reset(struct ufs_hba *hba)
 {
+	/* disable hba before device reset */
+	//ufshcd_hba_stop(hba, true);
+
 	(void)ufs_mtk_pltfrm_ufs_device_reset(hba);
 
 #ifdef CONFIG_MTK_UFS_LBA_CRC16_CHECK

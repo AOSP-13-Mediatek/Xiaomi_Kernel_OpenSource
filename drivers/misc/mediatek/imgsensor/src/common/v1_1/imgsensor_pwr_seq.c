@@ -19,6 +19,122 @@
 
 /* Legacy design */
 struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
+#if defined(AGATES5KHM2_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_AGATES5KHM2_MIPI_RAW,
+		{
+			{AFVDD, Vol_2800, 5},
+			{RST, Vol_Low, 1},
+			{DVDD, Vol_1100, 1},
+			{DOVDD, Vol_1800, 1},
+			{AVDD, Vol_2800, 1},
+			{RST, Vol_High, 2},
+			{SensorMCLK, Vol_High, 13},
+		},
+	},
+#endif
+#if defined(AGATEOV64B40_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_AGATEOV64B40_MIPI_RAW,
+		{
+			{AFVDD, Vol_2800, 5},
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1100, 2},
+			{SensorMCLK, Vol_High, 2},
+			{RST, Vol_High, 5}
+		},
+	},
+#endif
+#if defined(OV64B40SUNNY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_OV64B40SUNNY_MIPI_RAW,
+		{
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 0},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1100, 2},
+			{SensorMCLK, Vol_High, 2},
+			{RST, Vol_High, 5}
+		},
+	},
+#endif
+#if defined(AGATEOV16A1Q_MIPI_RAW)
+        {
+                SENSOR_DRVNAME_AGATEOV16A1Q_MIPI_RAW,
+                {
+                        {RST, Vol_Low, 2},
+                        {DOVDD, Vol_1800, 0},
+                        {DVDD, Vol_1200, 0},
+                        {AVDD, Vol_2800, 2},
+                        {SensorMCLK, Vol_High, 2},
+                        {RST, Vol_High, 5},
+                },
+        },
+#endif
+#if defined(OV16A1QOFILM_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_OV16A1QOFILM_MIPI_RAW,
+		{
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 0},
+			{DVDD, Vol_1200, 0},
+			{AVDD, Vol_2800, 2},
+			{SensorMCLK, Vol_High, 2},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(GC02M1SUNNY_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_GC02M1SUNNY_MIPI_RAW,
+		{
+			{RST, Vol_Low, 2},
+			{DOVDD, Vol_1800, 1},
+#if defined(_XIAOMI_CHOPIN_)
+			{PDN, Vol_High, 1},
+#endif
+			{AVDD, Vol_2800, 2},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 5},
+		},
+	},
+#endif
+#if defined(AGATES5K5E9_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_AGATES5K5E9_MIPI_RAW,
+		{
+			{RST, Vol_Low, 2},
+			{AFVDD, Vol_2800, 1},
+			{AVDD, Vol_2800, 1},
+			{DVDD, Vol_1200, 1},
+			{DOVDD, Vol_1800, 0},
+			{SensorMCLK, Vol_High, 1},
+			{RST, Vol_High, 5}
+                },
+        },
+
+#endif
+#if defined(IMX766_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_IMX766_MIPI_RAW,
+		{
+			{PDN, Vol_Low, 0},
+			{RST, Vol_Low, 1},
+			{AVDD, Vol_2800, 3},
+#ifdef CONFIG_REGULATOR_RT5133
+			{AVDD1, Vol_1800, 0},
+#endif
+			{AFVDD, Vol_2800, 3},
+			{DVDD, Vol_1100, 4},
+			{DOVDD, Vol_1800, 1},
+			{SensorMCLK, Vol_High, 6},
+			{PDN, Vol_High, 0},
+			{RST, Vol_High, 5}
+		},
+	},
+#endif
 #if defined(S5KJD1_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_S5KJD1_MIPI_RAW,
@@ -35,20 +151,29 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-#if defined(IMX586_MIPI_RAW)
+#if defined(IMX355SUNNY_MIPI_RAW)
 	{
-		SENSOR_DRVNAME_IMX586_MIPI_RAW,
+		SENSOR_DRVNAME_IMX355SUNNY_MIPI_RAW,
 		{
-			{RST, Vol_Low, 1},
-			{DOVDD, Vol_1800, 1},
+			{RST, Vol_Low, 2},
 			{AVDD, Vol_2800, 0},
-#ifdef CONFIG_REGULATOR_RT5133
-			{AVDD1, Vol_1800, 0},
+			{DVDD, Vol_1200, 0},
+			{DOVDD, Vol_1800, 2},
+			{SensorMCLK, Vol_High, 3},
+			{RST, Vol_High, 5}
+		},
+	},
 #endif
-			{AFVDD, Vol_2800, 0},
-			{DVDD, Vol_1100, 0},
-			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 3}
+#if defined(AGATEIMX355_MIPI_RAW)
+	{
+		SENSOR_DRVNAME_AGATEIMX355_MIPI_RAW,
+		{
+			{RST, Vol_Low, 2},
+			{AVDD, Vol_2800, 0},
+			{DVDD, Vol_1200, 0},
+			{DOVDD, Vol_1800, 2},
+			{SensorMCLK, Vol_High, 3},
+			{RST, Vol_High, 5}
 		},
 	},
 #endif
@@ -72,9 +197,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_S5K3M5SX_MIPI_RAW,
 		{
-#ifdef CONFIG_REGULATOR_RT5133
-			{RST, Vol_High, 10},
-#endif
 			{RST, Vol_Low, 1},
 			{DVDD, Vol_1100, 0},
 			{AVDD, Vol_2800, 0},
@@ -166,10 +288,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_IMX576_MIPI_RAW,
 		{
-#ifdef CONFIG_REGULATOR_RT5133
-			{PDN, Vol_High, 0},
-			{RST, Vol_High, 10},
-#endif
 			{PDN, Vol_Low, 0},
 			{RST, Vol_Low, 0},
 			{AVDD, Vol_2800, 0},
@@ -1008,34 +1126,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 		},
 	},
 #endif
-#if defined(OV48B_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_OV48B_MIPI_RAW,
-		{
-			{RST, Vol_Low, 1},
-			{SensorMCLK, Vol_High, 0},
-			{DOVDD, Vol_1800, 0},
-			{AVDD, Vol_2800, 0},
-			{DVDD, Vol_1200, 5},
-			//{AFVDD, Vol_2800, 2},
-			{RST, Vol_High, 5},
-		},
-	},
-#endif
-#if defined(S5K3P9SP_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_S5K3P9SP_MIPI_RAW,
-		{
-			{SensorMCLK, Vol_High, 0},
-			{RST, Vol_Low, 1},
-			{DVDD, Vol_1100, 1},
-			{AVDD, Vol_2800, 1},
-			{DOVDD, Vol_1800, 0},
-			//{AFVDD, Vol_2800, 5},
-			{RST, Vol_High, 2},
-		},
-	},
-#endif
 #if defined(GC8054_MIPI_RAW)
 	{
 		SENSOR_DRVNAME_GC8054_MIPI_RAW,
@@ -1122,32 +1212,6 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 			{SensorMCLK, Vol_High, 0},
 			{AVDD, Vol_2800, 9},
 			{RST, Vol_High, 1}
-		},
-	},
-#endif
-#if defined(OV64B_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_OV64B_MIPI_RAW,
-		{
-			{RST, Vol_Low, 1},
-			{SensorMCLK, Vol_High, 1},
-			{AVDD, Vol_2800, 2},
-			{DOVDD, Vol_1800, 1},
-			{DVDD, Vol_1100, 5},
-			{RST, Vol_High, 5},
-		},
-	},
-#endif
-#if defined(IMX615_MIPI_RAW)
-	{
-		SENSOR_DRVNAME_IMX615_MIPI_RAW,
-		{
-			{RST, Vol_Low, 1},
-			{AVDD, Vol_2900, 0},
-			{DVDD, Vol_1100, 0},
-			{DOVDD, Vol_1800, 1},
-			{SensorMCLK, Vol_High, 1},
-			{RST, Vol_High, 2},
 		},
 	},
 #endif

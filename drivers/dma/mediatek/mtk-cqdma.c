@@ -235,12 +235,12 @@ static void mtk_cqdma_start(struct mtk_cqdma_pchan *pc,
 {
 	/* wait for the previous transaction done */
 	if (mtk_cqdma_poll_engine_done(pc, true) < 0)
-		dev_notice(cqdma2dev(to_cqdma_dev(cvd->ch)), "cqdma wait transaction timeout\n");
+		dev_err(cqdma2dev(to_cqdma_dev(cvd->ch)), "cqdma wait transaction timeout\n");
 
 	/* warm reset the dma engine for the new transaction */
 	mtk_dma_set(pc, MTK_CQDMA_RESET, MTK_CQDMA_WARM_RST_BIT);
 	if (mtk_cqdma_poll_engine_done(pc, true) < 0)
-		dev_notice(cqdma2dev(to_cqdma_dev(cvd->ch)), "cqdma warm reset timeout\n");
+		dev_err(cqdma2dev(to_cqdma_dev(cvd->ch)), "cqdma warm reset timeout\n");
 
 	/* setup the source */
 	mtk_dma_set(pc, MTK_CQDMA_SRC, cvd->src & MTK_CQDMA_ADDR_LIMIT);
@@ -674,7 +674,7 @@ static void mtk_cqdma_free_chan_resources(struct dma_chan *c)
 
 		/* wait for the completion of flush operation */
 		if (mtk_cqdma_poll_engine_done(cvc->pc, true) < 0)
-			dev_notice(cqdma2dev(to_cqdma_dev(c)), "cqdma flush timeout\n");
+			dev_err(cqdma2dev(to_cqdma_dev(c)), "cqdma flush timeout\n");
 
 		/* clear the flush bit and interrupt flag */
 		mtk_dma_clr(cvc->pc, MTK_CQDMA_FLUSH, MTK_CQDMA_FLUSH_BIT);
@@ -709,7 +709,7 @@ static int mtk_cqdma_hw_init(struct mtk_cqdma_device *cqdma)
 	for (i = 0; i < cqdma->dma_channels; ++i) {
 		spin_lock_irqsave(&cqdma->pc[i]->lock, flags);
 		if (mtk_cqdma_hard_reset(cqdma->pc[i]) < 0) {
-			dev_notice(cqdma2dev(cqdma), "cqdma hard reset timeout\n");
+			dev_err(cqdma2dev(cqdma), "cqdma hard reset timeout\n");
 			spin_unlock_irqrestore(&cqdma->pc[i]->lock, flags);
 
 			clk_disable_unprepare(cqdma->clk);
@@ -732,7 +732,7 @@ static void mtk_cqdma_hw_deinit(struct mtk_cqdma_device *cqdma)
 	for (i = 0; i < cqdma->dma_channels; ++i) {
 		spin_lock_irqsave(&cqdma->pc[i]->lock, flags);
 		if (mtk_cqdma_hard_reset(cqdma->pc[i]) < 0)
-			dev_notice(cqdma2dev(cqdma), "cqdma hard reset timeout\n");
+			dev_err(cqdma2dev(cqdma), "cqdma hard reset timeout\n");
 		spin_unlock_irqrestore(&cqdma->pc[i]->lock, flags);
 	}
 
@@ -746,6 +746,7 @@ static const struct of_device_id mtk_cqdma_match[] = {
 	{ .compatible = "mediatek,cqdma" },
 	{ .compatible = "mediatek,mt6765-cqdma" },
 	{ .compatible = "mediatek,mt6893-cqdma" },
+	{ .compatible = "mediatek,mt6877-cqdma" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, mtk_cqdma_match);
@@ -767,7 +768,7 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 
 	cqdma->clk = devm_clk_get(&pdev->dev, "cqdma");
 	if (IS_ERR(cqdma->clk)) {
-		dev_notice(&pdev->dev, "No clock for %s\n",
+		dev_err(&pdev->dev, "No clock for %s\n",
 			dev_name(&pdev->dev));
 		return PTR_ERR(cqdma->clk);
 	}
@@ -813,13 +814,13 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 					   "dma-channel-mask",
 					   &cqdma->dma_mask);
 	if (err) {
-		dev_notice(&pdev->dev,
+		dev_warn(&pdev->dev,
 			 "Using 0 as missing dma-channel-mask property\n");
 		cqdma->dma_mask = 0;
 	}
 
 	if (dma_set_mask(&pdev->dev, DMA_BIT_MASK(cqdma->dma_mask))) {
-		dev_notice(&pdev->dev, "DMA set mask failed\n");
+		dev_warn(&pdev->dev, "DMA set mask failed\n");
 		return -EINVAL;
 	}
 
@@ -840,7 +841,7 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 		refcount_set(&cqdma->pc[i]->refcnt, 0);
 		res = platform_get_resource(pdev, IORESOURCE_MEM, i);
 		if (!res) {
-			dev_notice(&pdev->dev, "No mem resource for %s\n",
+			dev_err(&pdev->dev, "No mem resource for %s\n",
 				dev_name(&pdev->dev));
 			return -EINVAL;
 		}
@@ -851,7 +852,7 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 		/* allocate IRQ resource */
 		cqdma->pc[i]->irq = platform_get_irq(pdev, i);
 		if (!cqdma->pc[i]->irq) {
-			dev_notice(&pdev->dev, "No irq resource for %s\n",
+			dev_err(&pdev->dev, "No irq resource for %s\n",
 				dev_name(&pdev->dev));
 			return -EINVAL;
 		}
@@ -860,7 +861,7 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 				       mtk_cqdma_irq, 0, dev_name(&pdev->dev),
 				       cqdma);
 		if (err) {
-			dev_notice(&pdev->dev,
+			dev_err(&pdev->dev,
 				"request_irq failed with err %d\n", err);
 			return -EINVAL;
 		}
@@ -886,14 +887,14 @@ static int mtk_cqdma_probe(struct platform_device *pdev)
 	err = of_dma_controller_register(pdev->dev.of_node,
 					 of_dma_xlate_by_chan_id, cqdma);
 	if (err) {
-		dev_notice(&pdev->dev,
+		dev_err(&pdev->dev,
 			"MediaTek CQDMA OF registration failed %d\n", err);
 		goto err_unregister;
 	}
 
 	err = mtk_cqdma_hw_init(cqdma);
 	if (err) {
-		dev_notice(&pdev->dev,
+		dev_err(&pdev->dev,
 			"MediaTek CQDMA HW initialization failed %d\n", err);
 		goto err_unregister;
 	}

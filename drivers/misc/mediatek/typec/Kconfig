@@ -41,21 +41,11 @@ config MTK_USB_TYPEC_U3_MUX_V2
 config TCPC_MT6360
 	bool "MediaTek MT6360 TypeC port Controller Driver"
 	depends on TCPC_CLASS
-	select TCPC_ALERT_V20
 	help
 	  Say Y to enable MediaTek MT6370
 	  TypeC port Controller
 	  Also Support Power Delivery
 	  Say N to disable
-
-config TCPC_ALERT_V20
-	bool "TCPCI Alert v2.0"
-	depends on TCPC_CLASS
-	help
-	  Say Y to use tcpci_alert_v20
-	  Vendor defined interrupts
-	  should be handled by
-	  tcpc driver itself
 
 config MTK_TYPEC_WATER_DETECT
 	bool "Water detection function for type-c connector"
@@ -75,4 +65,22 @@ config MTK_TYPEC_WATER_DETECT_BY_PCB
 	  Say Yes to let PCB decides enabling water detection or not.
 	  If unsure, say N.
 
+config AGATE_CHARGER
+	bool "MTK charger for AGATE"
+	help
+	  Say yes In MTK charger AGATE.
+
+config ARES_CHARGER
+	bool "MTK charger for ARES"
+	help
+	  Say yes In MTK charger ARES.
+
+config PISSARRO_CHARGER
+	bool "MTK charger for PISSARRO"
+	help
+	  Say yes In MTK charger PISSARRO.
+
 source "drivers/misc/mediatek/typec/tcpc/Kconfig"
+source "drivers/misc/mediatek/typec/tcpc_agate/Kconfig"
+source "drivers/misc/mediatek/typec/tcpc_ares/Kconfig"
+source "drivers/misc/mediatek/typec/tcpc_pissarro/Kconfig"

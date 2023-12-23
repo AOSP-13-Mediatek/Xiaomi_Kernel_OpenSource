@@ -1267,7 +1267,7 @@ int ili_get_tp_recore_data(bool mcu)
 	fcnt = buf[5];
 	record_case = buf[6];
 	ipio_memcpy(&record_stat, &buf[7], 1, 1);
-	ILI_INFO("addr = 0x%x, len = %d, lndex = 0x%d, fram num = %d, record_case = 0x%x\n",
+	ILI_INFO("addr = 0x%x, len = %d, lndex = %d, fram num = %d, record_case = 0x%x\n",
 		addr, len, index, fcnt, record_case);
 	ili_dump_data(buf, 8, sizeof(buf), 0, "all record bytes");
 

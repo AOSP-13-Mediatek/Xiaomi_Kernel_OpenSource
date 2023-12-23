@@ -68,6 +68,7 @@ static int fops_vcodec_open(struct file *file)
 		init_waitqueue_head(&ctx->queue[i]);
 	mutex_init(&ctx->buf_lock);
 	mutex_init(&ctx->worker_lock);
+	mutex_init(&ctx->hw_status);
 
 	ctx->type = MTK_INST_DECODER;
 	ret = mtk_vcodec_dec_ctrls_setup(ctx);
@@ -422,6 +423,7 @@ static const struct of_device_id mtk_vcodec_match[] = {
 	{.compatible = "mediatek,mt6853-vcodec-dec",},
 	{.compatible = "mediatek,mt6833-vcodec-dec",},
 	{.compatible = "mediatek,mt6877-vcodec-dec",},
+	{.compatible = "mediatek,mt6781-vcodec-dec",},
 	{.compatible = "mediatek,vdec_gcon",},
 	{},
 };

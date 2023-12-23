@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,7 +49,10 @@ struct lcm {
 	struct drm_panel panel;
 	struct backlight_device *backlight;
 	struct gpio_desc *reset_gpio;
+	struct gpio_desc *bias_pos;
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
 	struct gpio_desc *vddi_enable;
+#endif
 
 	bool prepared;
 	bool enabled;
@@ -58,7 +60,11 @@ struct lcm {
 
 	int error;
 	const char *panel_info;
+	int dynamic_fps;
 	u32 doze_brightness_state;
+
+	struct pinctrl *pinctrl_gpios;
+	struct pinctrl_state *err_flag_irq;
 
 	u32 max_brightness_clone;
 	struct mutex panel_lock;

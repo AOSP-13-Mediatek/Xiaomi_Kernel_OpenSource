@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -107,6 +106,7 @@ int sensorlist_handle_to_sensor(int handle)
 	case sar_secondary:
 		type = SENSOR_TYPE_SAR_SECONDARY;
 		break;
+
 	}
 	return type;
 }

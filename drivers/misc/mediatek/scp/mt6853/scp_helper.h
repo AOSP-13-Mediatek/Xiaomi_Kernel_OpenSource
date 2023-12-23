@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -112,6 +111,13 @@ enum scp_reserve_mem_id_t {
 	VOW_MEM_ID,
 #endif
 	SENS_MEM_ID,
+#ifdef CONFIG_MTK_SENSORHUB
+	SENS_SUPER_MEM_ID,
+	SENS_LIST_MEM_ID,
+	SENS_DEBUG_MEM_ID,
+	SENS_CUSTOM_W_MEM_ID,
+	SENS_CUSTOM_R_MEM_ID,
+#endif
 	SCP_A_LOGGER_MEM_ID,
 #if defined(CONFIG_SND_SOC_MTK_SCP_SMARTPA) || \
 	defined(CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT) || \
@@ -119,9 +125,7 @@ enum scp_reserve_mem_id_t {
 	defined(CONFIG_MTK_VOW_SUPPORT)
 	AUDIO_IPI_MEM_ID,
 #endif
-#ifdef CONFIG_MTK_VOW_BARGE_IN_SUPPORT
 	VOW_BARGEIN_MEM_ID,
-#endif
 #ifdef SCP_PARAMS_TO_SCP_SUPPORT
 	SCP_DRV_PARAMS_MEM_ID,
 #endif

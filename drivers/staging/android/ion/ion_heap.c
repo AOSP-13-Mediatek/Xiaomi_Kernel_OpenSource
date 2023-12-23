@@ -2,7 +2,6 @@
  * drivers/staging/android/ion/ion_heap.c
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -212,9 +211,10 @@ void ion_heap_freelist_add(struct ion_heap *heap, struct ion_buffer *buffer)
 
 	if (free_list_size > unit) {
 		IONMSG(
-			"[ion_dbg] warning: free_list_size=%zu, heap_id:%u, nice:%ld\n",
-			heap->free_list_size, heap->id, nice);
+			"%s: free_size=%zu,heap_id:%u,nice:%ld\n",
+			__func__, heap->free_list_size, heap->id, nice);
 	}
+
 	set_user_nice(heap->task, nice);
 	wake_up(&heap->waitqueue);
 }

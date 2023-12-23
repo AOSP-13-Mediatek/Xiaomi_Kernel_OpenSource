@@ -87,9 +87,9 @@
 /**************************************************
  * Reference Power Setting
  **************************************************/
-#define GPU_ACT_REF_POWER               (1285)                /* mW  */
-#define GPU_ACT_REF_FREQ                (900000)              /* KHz */
-#define GPU_ACT_REF_VOLT                (90000)               /* mV x 100 */
+#define GPU_ACT_REF_POWER               (3352)                /* mW  */
+#define GPU_ACT_REF_FREQ                (886000)              /* KHz */
+#define GPU_ACT_REF_VOLT                (80000)               /* mV x 100 */
 #define PTPOD_DISABLE_VOLT              (75000)
 
 /**************************************************
@@ -224,7 +224,6 @@ enum g_posdiv_power_enum  {
 enum g_clock_source_enum  {
 	CLOCK_MAIN = 0,
 	CLOCK_SUB,
-	CLOCK_SUB2,
 };
 
 enum g_limit_enable_enum  {

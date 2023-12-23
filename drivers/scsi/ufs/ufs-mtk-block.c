@@ -116,7 +116,6 @@ int mtk_btag_pidlog_add_ufs(struct request_queue *q, short pid,
 }
 EXPORT_SYMBOL_GPL(mtk_btag_pidlog_add_ufs);
 
-
 static const char *task_name[tsk_max] = {
 	"send_cmd", "req_compl"};
 

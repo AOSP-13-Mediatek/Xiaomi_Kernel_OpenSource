@@ -52,8 +52,6 @@ enum SENINF_CLK_IDX_SYS {
 	SENINF_CLK_IDX_SYS_MIN_NUM = 0,
 	SENINF_CLK_IDX_SYS_SCP_SYS_CSI = SENINF_CLK_IDX_SYS_MIN_NUM,
 	SENINF_CLK_IDX_SYS_SCP_SYS_CAM,
-	SENINF_CLK_IDX_SYS_SCP_SYS_RAWA,
-	SENINF_CLK_IDX_SYS_SCP_SYS_RAWB,
 	SENINF_CLK_IDX_SYS_CAMSYS_SENINF_CGPDN,
 	SENINF_CLK_IDX_SYS_TOP_MUX_SENINF,
 	SENINF_CLK_IDX_SYS_TOP_MUX_SENINF1,
@@ -121,8 +119,6 @@ struct SENINF_CLK_CTRL {
 static struct SENINF_CLK_CTRL gseninf_mclk_name[SENINF_CLK_IDX_MAX_NUM] = {
 	{"SCP_SYS_CSI"},
 	{"SCP_SYS_CAM"},
-	{"ISP_SCP_SYS_RAWA"},
-	{"ISP_SCP_SYS_RAWB"},
 	{"CAMSYS_SENINF_CGPDN"},
 	{"TOP_MUX_SENINF"},
 	{"TOP_MUX_SENINF1"},
@@ -175,6 +171,7 @@ unsigned int seninf_clk_get_meter(struct SENINF_CLK *pclk, unsigned int clk);
 
 extern unsigned int mt_get_ckgen_freq(int ID);
 extern unsigned long clk_get_rate(struct clk *clk);
-
+extern bool __clk_is_enabled(struct clk *clk);
+extern unsigned int __clk_get_enable_count(struct clk *clk);
 #endif
 

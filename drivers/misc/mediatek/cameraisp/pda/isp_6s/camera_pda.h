@@ -27,7 +27,6 @@
 #define PDA_MAGIC               'P'
 
 void __iomem *m_pda_base;
-void __iomem *CAMSYS_CONFIG_BASE;
 
 #define PDA_BASE_HW             m_pda_base
 #define PDA_CFG_0_REG (PDA_BASE_HW + 0x000)
@@ -214,83 +213,224 @@ void __iomem *CAMSYS_CONFIG_BASE;
 #define PDA_PDA_SPARE6_REG (PDA_BASE_HW + 0x3d8)
 #define PDA_PDA_SPARE7_REG (PDA_BASE_HW + 0x3dc)
 
-struct PDA_Config {
-	unsigned int PDA_CFG[127];
+union _REG_PDA_CFG_0_ {
+	struct /* 0x0000 */
+	{
+		unsigned int  PDA_WIDTH        :  16;   /*  0.. 16, 0x0000FFFF */
+		unsigned int  PDA_HEIGHT       :  16;   /*  16.. 32, 0xFFFF0080 */
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_1_ {
+	struct /* 0x0004 */
+	{
+		unsigned int  PDA_EN           :  1;    /*  0.. 0, 0x00000001 */
+		unsigned int  PDA_PR_XNUM      :  5;    /*  1.. 5, 0x0000003E */
+		unsigned int  PDA_PR_YNUM      :  5;    /*  6.. 10, 0x00007C0 */
+		unsigned int  PDA_PAT_WIDTH    :  10;   /*  11.. 20, 0x001FF800 */
+		unsigned int  PDA_BIN_FCTR     :  2;    /*  21.. 22, 0x00600000 */
+		unsigned int  PDA_RNG_ST       :  6;    /*  23.. 28, 0x1F800080 */
+		unsigned int  PDA_SHF_0        :  3;    /*  29.. 31, 0xE0000000 */
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_2_ {
+	struct /* 0x0008 */
+	{
+		unsigned int  PDA_SHF_1        :  3;
+		unsigned int  PDA_SHF_2        :  3;
+		unsigned int  PDA_RGN_NUM      :  6;
+		unsigned int  PDA_TBL_STRIDE   :  16;
+		unsigned int  rsv_28           :  4;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_3_ {
+	struct /* 0x000C */
+	{
+		unsigned int  PDA_POS_L_0      :  9;
+		unsigned int  PDA_POS_L_1      :  9;
+		unsigned int  PDA_POS_L_2      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_4_ {
+	struct /* 0x0010 */
+	{
+		unsigned int  PDA_POS_L_3      :  9;
+		unsigned int  PDA_POS_L_4      :  9;
+		unsigned int  PDA_POS_L_5      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_5_ {
+	struct /* 0x0014 */
+	{
+		unsigned int  PDA_POS_L_6      :  9;
+		unsigned int  PDA_POS_L_7      :  9;
+		unsigned int  PDA_POS_L_8      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_6_ {
+	struct /* 0x0018 */
+	{
+		unsigned int  PDA_POS_L_9      :  9;
+		unsigned int  PDA_POS_L_10     :  9;
+		unsigned int  PDA_POS_L_11     :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_7_ {
+	struct /* 0x001C */
+	{
+		unsigned int  PDA_POS_L_12     :  9;
+		unsigned int  PDA_POS_L_13     :  9;
+		unsigned int  PDA_POS_L_14     :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_8_ {
+	struct /* 0x0020 */
+	{
+		unsigned int  PDA_POS_L_15     :  9;
+		unsigned int  PDA_POS_R_0      :  9;
+		unsigned int  PDA_POS_R_1      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_9_ {
+	struct /* 0x0024 */
+	{
+		unsigned int  PDA_POS_R_2      :  9;
+		unsigned int  PDA_POS_R_3      :  9;
+		unsigned int  PDA_POS_R_4      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_10_ {
+	struct /* 0x0028 */
+	{
+		unsigned int  PDA_POS_R_5      :  9;
+		unsigned int  PDA_POS_R_6      :  9;
+		unsigned int  PDA_POS_R_7      :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_11_ {
+	struct /* 0x002C */
+	{
+		unsigned int  PDA_POS_R_8      :  9;
+		unsigned int  PDA_POS_R_9      :  9;
+		unsigned int  PDA_POS_R_10     :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_12_ {
+	struct /* 0x0030 */
+	{
+		unsigned int  PDA_POS_R_11     :  9;
+		unsigned int  PDA_POS_R_12     :  9;
+		unsigned int  PDA_POS_R_13     :  9;
+		unsigned int  rsv_27           :  5;
+	} Bits;
+	unsigned int Raw;
+};
+
+union _REG_PDA_CFG_13_ {
+	struct /* 0x0034 */
+	{
+		unsigned int  PDA_POS_R_14     :  9;
+		unsigned int  PDA_POS_R_15     :  9;
+		unsigned int  rsv_18           :  14;
+	} Bits;
+	unsigned int Raw;
+};
+
+struct _pda_a_reg_t_ {
+	union _REG_PDA_CFG_0_            PDA_CFG_0;
+	union _REG_PDA_CFG_1_            PDA_CFG_1;
+	union _REG_PDA_CFG_2_            PDA_CFG_2;
+	union _REG_PDA_CFG_3_            PDA_CFG_3;
+	union _REG_PDA_CFG_4_            PDA_CFG_4;
+	union _REG_PDA_CFG_5_            PDA_CFG_5;
+	union _REG_PDA_CFG_6_            PDA_CFG_6;
+	union _REG_PDA_CFG_7_            PDA_CFG_7;
+	union _REG_PDA_CFG_8_            PDA_CFG_8;
+	union _REG_PDA_CFG_9_            PDA_CFG_9;
+	union _REG_PDA_CFG_10_           PDA_CFG_10;
+	union _REG_PDA_CFG_11_           PDA_CFG_11;
+	union _REG_PDA_CFG_12_           PDA_CFG_12;
+	union _REG_PDA_CFG_13_           PDA_CFG_13;
+};
+
+//Datastructure for 1024 ROI
+struct PDA_Data_t {
+	unsigned int rgn_x[128];	//128
+	unsigned int rgn_y[128];
+	unsigned int rgn_h[128];
+	unsigned int rgn_w[128];
+	unsigned int rgn_iw[128];
+
+	unsigned int xnum;
+	unsigned int ynum;
+	unsigned int woverlap;
+	unsigned int hoverlap;
+
+	unsigned int ImageSize;
+	unsigned int TableSize;
+	unsigned int OutputSize;
+	unsigned int ROInumber;
+
+	int FD_L_Image;
+	int FD_R_Image;
+	int FD_L_Table;
+	int FD_R_Table;
+	int FD_Output;
+
+	struct _pda_a_reg_t_ PDA_FrameSetting;
+
 	unsigned int PDA_PDAI_P1_BASE_ADDR;
 	unsigned int PDA_PDATI_P1_BASE_ADDR;
 	unsigned int PDA_PDAI_P2_BASE_ADDR;
 	unsigned int PDA_PDATI_P2_BASE_ADDR;
-	unsigned int PDA_PDAI_STRIDE;
-	unsigned int PDA_PDAI_P1_CON0;
-	unsigned int PDA_PDAI_P1_CON1;
-	unsigned int PDA_PDAI_P1_CON2;
-	unsigned int PDA_PDAI_P1_CON3;
-	unsigned int PDA_PDAI_P1_CON4;
-	unsigned int PDA_PDATI_P1_CON0;
-	unsigned int PDA_PDATI_P1_CON1;
-	unsigned int PDA_PDATI_P1_CON2;
-	unsigned int PDA_PDATI_P1_CON3;
-	unsigned int PDA_PDATI_P1_CON4;
-	unsigned int PDA_PDAI_P2_CON0;
-	unsigned int PDA_PDAI_P2_CON1;
-	unsigned int PDA_PDAI_P2_CON2;
-	unsigned int PDA_PDAI_P2_CON3;
-	unsigned int PDA_PDAI_P2_CON4;
-	unsigned int PDA_PDATI_P2_CON0;
-	unsigned int PDA_PDATI_P2_CON1;
-	unsigned int PDA_PDATI_P2_CON2;
-	unsigned int PDA_PDATI_P2_CON3;
-	unsigned int PDA_PDATI_P2_CON4;
 	unsigned int PDA_PDAO_P1_BASE_ADDR;
-	unsigned int PDA_PDAO_P1_XSIZE;
-	unsigned int PDA_PDAO_P1_CON0;
-	unsigned int PDA_PDAO_P1_CON1;
-	unsigned int PDA_PDAO_P1_CON2;
-	unsigned int PDA_PDAO_P1_CON3;
-	unsigned int PDA_PDAO_P1_CON4;
-	unsigned int PDA_PDA_DMA_EN;
-	unsigned int PDA_PDA_DMA_RST;
-	unsigned int PDA_PDA_DMA_TOP;
-	unsigned int PDA_PDA_SECURE;
-	unsigned int PDA_PDA_TILE_STATUS;
-	unsigned int PDA_PDA_DCM_DIS;
-	unsigned int PDA_PDA_DCM_ST;
-	unsigned int PDA_PDAI_P1_ERR_STAT;
-	unsigned int PDA_PDATI_P1_ERR_STAT;
-	unsigned int PDA_PDAI_P2_ERR_STAT;
-	unsigned int PDA_PDATI_P2_ERR_STAT;
-	unsigned int PDA_PDAO_P1_ERR_STAT;
-	unsigned int PDA_PDA_ERR_STAT_EN;
-	unsigned int PDA_PDA_ERR_STAT;
-	unsigned int PDA_PDA_TOP_CTL;
-	unsigned int PDA_PDA_DEBUG_SEL;
-	unsigned int PDA_PDA_IRQ_TRIG;
-	unsigned int PDA_PDA_SPARE1;
-	unsigned int PDA_PDA_SPARE2;
-	unsigned int PDA_PDA_SPARE3;
-	unsigned int PDA_PDA_SPARE4;
-	unsigned int PDA_PDA_SPARE5;
-	unsigned int PDA_PDA_SPARE6;
-	unsigned int PDA_PDA_SPARE7;
+
+	int Status;
+	unsigned int Timeout;
+
+	unsigned int nNumerousROI;
 };
 
 enum PDA_CMD_ENUM {
 	PDA_CMD_RESET,		/* Reset */
-	PDA_CMD_ENQUE,		/* PDA Enque */
-	PDA_CMD_DEQUE,		/* PDA Deque */
-	PDA_CMD_WAIT_IRQ,
+	PDA_CMD_ENQUE_WAITIRQ,	/* PDA Enque And Wait Irq */
 	PDA_CMD_TOTAL,
 };
 
-struct PDA_WAIT_IRQ_STRUCT {
-	unsigned int Status;    /*IRQ Status */
-	unsigned int Timeout;
-	//int ProcessID;      /* user ProcessID (will filled in kernel) */
-};
-
 #define PDA_RESET	_IO(PDA_MAGIC, PDA_CMD_RESET)
-#define PDA_ENQUE	_IOWR(PDA_MAGIC, PDA_CMD_ENQUE, struct PDA_Config)
-#define PDA_DEQUE	_IOWR(PDA_MAGIC, PDA_CMD_DEQUE, struct PDA_Config)
-#define PDA_WAIT_IRQ	_IOWR(PDA_MAGIC, PDA_CMD_WAIT_IRQ, struct PDA_WAIT_IRQ_STRUCT)
+#define PDA_ENQUE_WAITIRQ    \
+	_IOWR(PDA_MAGIC, PDA_CMD_ENQUE_WAITIRQ, struct PDA_Data_t)
 
 #endif/*__MTK_PDA_HW_H__*/

@@ -102,6 +102,9 @@ struct fbt_boost_info {
 	int quota;
 	int quota_adj; /* remove outlier */
 	int quota_mod; /* mod target time */
+	int enq_raw[QUOTA_MAX_SIZE];
+	int enq_sum;
+	int enq_avg;
 
 	/* GCC */
 	int gcc_quota;
@@ -268,6 +271,12 @@ enum FPSGO_BQID_ACT {
 	ACTION_FIND_ADD,
 	ACTION_FIND_DEL,
 	ACTION_DEL_PID
+};
+
+enum FPSGO_RENDER_INFO_HWUI {
+	RENDER_INFO_HWUI_UNKNOWN = 0,
+	RENDER_INFO_HWUI_TYPE = 1,
+	RENDER_INFO_HWUI_NONE = 2,
 };
 
 #endif

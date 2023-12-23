@@ -635,9 +635,6 @@ static void __init init_custom_cmds(void)
 
 static int __init clkdbg_mt6885_init(void)
 {
-	if (!of_machine_is_compatible("mediatek,MT6885"))
-		return -ENODEV;
-
 	init_regbase();
 
 	init_custom_cmds();
@@ -666,9 +663,6 @@ void print_subsys_reg(enum dbg_sys_id id)
 	struct regbase *rb_dump;
 	const struct regname *rns = &rn[0];
 	int i;
-
-	if (rns == NULL)
-		return;
 
 	if (id >= dbg_sys_num || id < 0) {
 		pr_info("wrong id:%d\n", id);

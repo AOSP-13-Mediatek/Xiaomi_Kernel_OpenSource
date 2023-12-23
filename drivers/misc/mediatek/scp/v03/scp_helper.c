@@ -407,9 +407,7 @@ static void scp_A_notify_ws(struct work_struct *ws)
 	/*clear reset status and unlock wake lock*/
 	pr_debug("[SCP] clear scp reset flag and unlock\n");
 #ifndef CONFIG_FPGA_EARLY_PORTING
-#if SCP_DVFS_INIT_ENABLE
 	scp_resource_req(SCP_REQ_RELEASE);
-#endif
 #endif  // CONFIG_FPGA_EARLY_PORTING
 	/* register scp dvfs*/
 	msleep(2000);
@@ -534,7 +532,7 @@ static int scp_A_ready_ipi_handler(unsigned int id, void *prdata, void *data,
  * @param data: ipi data
  * @param len:  length of ipi data
  */
-static void scp_err_info_handler(int id, void *prdata, void *data,
+static int scp_err_info_handler(unsigned int id, void *prdata, void *data,
 				 unsigned int len)
 {
 	struct error_info *info = (struct error_info *)data;
@@ -543,7 +541,7 @@ static void scp_err_info_handler(int id, void *prdata, void *data,
 		pr_notice("[SCP] error: incorrect size %d of error_info\n",
 				len);
 		WARN_ON(1);
-		return;
+		return 0;
 	}
 
 	/* Ensure the context[] is terminated by the NULL character. */
@@ -556,6 +554,8 @@ static void scp_err_info_handler(int id, void *prdata, void *data,
 		report_hub_dmd(info->case_id, info->sensor_id, info->context);
 	else
 		pr_debug("[SCP] warning: report_hub_dmd() not defined.\n");
+
+	return 0;
 }
 
 
@@ -1384,6 +1384,14 @@ void print_clk_registers(void)
 		pr_notice("[SCP] cfg_core0[0x%04x]: 0x%08x\n", offset, value);
 	}
 
+#if defined(CONFIG_MACH_MT6833)
+	pr_notice("[SCP] dumping core0_intc\n");
+	// 0x32000 ~ 0x3225C (inclusive)
+	for (offset = 0x2000; offset <= 0x225C; offset += 4) {
+		value = (unsigned int)readl(cfg_core0 + offset);
+		pr_notice("[SCP] core0_intc[0x%04x]: 0x%08x\n", offset, value);
+	}
+#endif
 }
 
 void scp_reset_wait_timeout(void)
@@ -1439,9 +1447,7 @@ void scp_sys_reset_ws(struct work_struct *ws)
 	__pm_stay_awake(&scp_reset_lock);
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	/* keep Univpll */
-#if SCP_DVFS_INIT_ENABLE
 	scp_resource_req(SCP_REQ_26M);
-#endif
 #endif  // CONFIG_FPGA_EARLY_PORTING
 
 	/* print_clk and scp_aed before pll enable to keep ori CLK_SEL */
@@ -1846,9 +1852,7 @@ static int __init scp_init(void)
 
 #ifndef CONFIG_FPGA_EARLY_PORTING
 	/* keep Univpll */
-#if SCP_DVFS_INIT_ENABLE
 	scp_resource_req(SCP_REQ_26M);
-#endif
 #endif  // CONFIG_FPGA_EARLY_PORTING
 
 #if SCP_RESERVED_MEM && defined(CONFIG_OF_RESERVED_MEM)

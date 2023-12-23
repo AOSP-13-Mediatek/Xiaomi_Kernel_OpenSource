@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #ifndef _MI_DSI_DISPLAY_H_
@@ -62,6 +61,14 @@ int mi_dsi_display_get_brightness(void *display,
 
 int mi_dsi_display_write_mipi_reg(void *display, char *buf);
 
+ssize_t mi_dsi_display_enable_calib(void *display, char *buf);
+
+ssize_t mi_dsi_display_get_calib_status(char *buf);
+
+ssize_t mi_dsi_display_enable_gir(void *display, char *buf);
+
+ssize_t mi_dsi_display_disable_gir(void *display, char *buf);
+
 ssize_t mi_dsi_display_read_mipi_reg(void *display, char *buf);
 
 ssize_t mi_dsi_display_read_panel_info(void *display,
@@ -75,4 +82,18 @@ int mi_dsi_display_get_brightness_clone(void *display,
 
 int mi_dsi_display_get_brightness(void *display,
 			u32 *brightness);
+void mi_dsi_display_wakeup_pending_doze_work(void *display);
+
+int mi_dsi_display_get_max_brightness_clone(void *display,
+			u32 *max_brightness_clone);
+
+int mi_dsi_display_set_thermal_limit_brightness_clone(void *display,
+			u32 brightness_clone);
+
+int mi_dsi_display_get_thermal_limit_brightness_clone(void *display,
+			u32 *thermal_limit_brightness_clone);
+
+ssize_t mi_dsi_display_set_disp_count(void *display, char* buf);
+
+ssize_t mi_dsi_display_get_disp_count(void *display, char* buf);
 #endif /*_MI_DSI_DISPLAY_H_*/

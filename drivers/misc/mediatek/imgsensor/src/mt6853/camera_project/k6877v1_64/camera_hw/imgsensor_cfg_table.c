@@ -269,12 +269,12 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_S5KHM2SD_OFILM_MIPI_RAW,
 		{
-			{RST, Vol_Low, 1},
+			{RST, Vol_Low, 10},
 			{DOVDD, Vol_1800, 1},
 			{AVDD, Vol_2800, 1},
 			{DVDD, Vol_1050, 1},
 //			{AFVDD, Vol_2800, 0},
-			{SensorMCLK, Vol_High, 2},
+			{SensorMCLK, Vol_High, 5},
 			{RST, Vol_High, 10}
 		},
 	},
@@ -283,12 +283,12 @@ struct IMGSENSOR_HW_POWER_SEQ sensor_power_sequence[] = {
 	{
 		SENSOR_DRVNAME_S5KHM2SD_SUNNY_MIPI_RAW,
 		{
-			{RST, Vol_Low, 1},
+			{RST, Vol_Low, 10},
 			{DOVDD, Vol_1800, 1},
 			{AVDD, Vol_2800, 1},
 			{DVDD, Vol_1050, 1},
 //			{AFVDD, Vol_2800, 0},
-			{SensorMCLK, Vol_High, 2},
+			{SensorMCLK, Vol_High, 5},
 			{RST, Vol_High, 10}
 		},
 	},

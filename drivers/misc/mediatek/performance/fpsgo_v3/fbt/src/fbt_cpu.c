@@ -106,10 +106,10 @@
 #define DEFAULT_GCC_GPU_BOUND_TIME 90
 #define DEFAULT_GCC_CPU_UNKNOWN_SLEEP 80
 #define DEFAULT_GCC_CHECK_UNDER_BOOST 0
-#define DEFAULT_GCC_ENQ_BOUND_THRS 200
-#define DEFAULT_GCC_ENQ_BOUND_QUOTA 0
-#define DEFAULT_GCC_DEQ_BOUND_THRS 200
-#define DEFAULT_GCC_DEQ_BOUND_QUOTA 100
+#define DEFAULT_GCC_ENQ_BOUND_THRS 20
+#define DEFAULT_GCC_ENQ_BOUND_QUOTA 6
+#define DEFAULT_GCC_DEQ_BOUND_THRS 20
+#define DEFAULT_GCC_DEQ_BOUND_QUOTA 6
 
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
@@ -215,34 +215,21 @@ static int loading_adj_cnt;
 static int loading_debnc_cnt;
 static int loading_time_diff;
 static int adjust_loading;
-static int rescue_percent_90;
-static int rescue_percent_120;
 static int fps_level_range;
 static int check_running;
 static int uboost_enhance_f;
 static int boost_affinity;
-static int boost_affinity_90;
-static int boost_affinity_120;
 static int cm_big_cap;
-static int cm_big_cap_90;
-static int cm_big_cap_120;
 static int cm_tdiff;
-static int cm_tdiff_90;
-static int cm_tdiff_120;
 static int rescue_second_time;
 static int rescue_second_group;
 static int rescue_second_copp;
 static int rescue_second_enable;
+static int rescue_second_enhance_f;
 static int qr_enable;
 static int qr_t2wnt_x;
 static int qr_t2wnt_y_p;
 static int qr_t2wnt_y_n;
-static int qr_t2wnt_x_90;
-static int qr_t2wnt_y_p_90;
-static int qr_t2wnt_y_n_90;
-static int qr_t2wnt_x_120;
-static int qr_t2wnt_y_p_120;
-static int qr_t2wnt_y_n_120;
 static int qr_hwui_hint;
 static int qr_filter_outlier;
 static int qr_mod_frame;
@@ -290,33 +277,20 @@ module_param(loading_adj_cnt, int, 0644);
 module_param(loading_debnc_cnt, int, 0644);
 module_param(loading_time_diff, int, 0644);
 module_param(adjust_loading, int, 0644);
-module_param(rescue_percent_90, int, 0644);
-module_param(rescue_percent_120, int, 0644);
 module_param(fps_level_range, int, 0644);
 module_param(check_running, int, 0644);
 module_param(uboost_enhance_f, int, 0644);
 module_param(boost_affinity, int, 0644);
-module_param(boost_affinity_90, int, 0644);
-module_param(boost_affinity_120, int, 0644);
 module_param(cm_big_cap, int, 0644);
-module_param(cm_big_cap_90, int, 0644);
-module_param(cm_big_cap_120, int, 0644);
 module_param(cm_tdiff, int, 0644);
-module_param(cm_tdiff_90, int, 0644);
-module_param(cm_tdiff_120, int, 0644);
 module_param(rescue_second_time, int, 0644);
 module_param(rescue_second_group, int, 0644);
 module_param(rescue_second_enable, int, 0644);
+module_param(rescue_second_enhance_f, int, 0644);
 module_param(qr_enable, int, 0644);
 module_param(qr_t2wnt_x, int, 0644);
 module_param(qr_t2wnt_y_p, int, 0644);
 module_param(qr_t2wnt_y_n, int, 0644);
-module_param(qr_t2wnt_x_90, int, 0644);
-module_param(qr_t2wnt_y_p_90, int, 0644);
-module_param(qr_t2wnt_y_n_90, int, 0644);
-module_param(qr_t2wnt_x_120, int, 0644);
-module_param(qr_t2wnt_y_p_120, int, 0644);
-module_param(qr_t2wnt_y_n_120, int, 0644);
 module_param(qr_hwui_hint, int, 0644);
 module_param(qr_filter_outlier, int, 0644);
 module_param(qr_mod_frame, int, 0644);
@@ -365,8 +339,6 @@ static int fbt_cap_margin_enable;
 static int ultra_rescue;
 static int loading_policy;
 static int llf_task_policy;
-static int loading_policy_90;
-static int llf_task_policy_90;
 
 static int cluster_num;
 static unsigned int cpu_max_freq;
@@ -391,6 +363,7 @@ static unsigned int max_blc_cur;
 static int boosted_group;
 
 static unsigned int *clus_obv;
+static unsigned int *clus_status;
 static unsigned int last_obv;
 
 static unsigned long long vsync_time;
@@ -680,6 +653,26 @@ static void fbt_find_ex_max_blc(int pid, unsigned long long buffer_id,
 		}
 	}
 	mutex_unlock(&blc_mlock);
+}
+
+static int fbt_is_cl_isolated(int cluster, bool include_offline)
+{
+	cpumask_t mask;
+	cpumask_t count_mask = CPU_MASK_NONE;
+
+	arch_get_cluster_cpus(&mask, cluster);
+
+	if (include_offline) {
+		cpumask_complement(&count_mask, cpu_online_mask);
+		cpumask_or(&count_mask, &count_mask, cpu_isolated_mask);
+		cpumask_and(&count_mask, &count_mask, &mask);
+	} else
+		cpumask_and(&count_mask, &mask, cpu_isolated_mask);
+
+	if (cpumask_weight(&count_mask) == cpumask_weight(&mask))
+		return 1;
+
+	return 0;
 }
 
 static void fbt_set_cap_margin_locked(int set)
@@ -1201,7 +1194,6 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 	char *dep_str = NULL;
 	int ret;
 	int heavy_pid = 0;
-	int do_affinity = 0;
 
 	if (!thr)
 		return;
@@ -1226,23 +1218,10 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 	if (!size || !thr->dep_arr)
 		return;
 
-	if (boost_affinity || boost_affinity_90 || boost_affinity_120) {
-		int tfps_level;
-
-		tfps_level = fbt_get_fps_level(thr->boost_info.target_fps);
-
-		if (tfps_level == fbt_fps_level[0])
-			do_affinity = boost_affinity;
-		else if (tfps_level == fbt_fps_level[1])
-			do_affinity = boost_affinity_90;
-		else
-			do_affinity = boost_affinity_120;
-	}
-
-	if (loading_th || do_affinity)
+	if (loading_th || boost_affinity)
 		fbt_query_dep_list_loading(thr);
 
-	if (do_affinity)
+	if (boost_affinity)
 		heavy_pid = fbt_get_heavy_pid(thr->dep_valid_size, thr->dep_arr);
 
 	dep_str = kcalloc(size + 1, MAX_PID_DIGIT * sizeof(char),
@@ -1257,7 +1236,7 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 		if (!fl->pid)
 			continue;
 
-		if (loading_th || do_affinity) {
+		if (loading_th || boost_affinity) {
 			fpsgo_systrace_c_fbt_gm(fl->pid, thr->buffer_id,
 				fl->loading, "dep-loading");
 
@@ -1270,37 +1249,25 @@ static void fbt_set_min_cap_locked(struct render_info *thr, int min_cap,
 		}
 
 		if (fbt_is_light_loading(fl->loading)) {
-			int tfps_level;
-			int fps_loading_policy, fps_llf_task_policy;
-
-			tfps_level = fbt_get_fps_level(thr->boost_info.target_fps);
-			if (tfps_level == fbt_fps_level[0]) {
-				fps_loading_policy = loading_policy;
-				fps_llf_task_policy = llf_task_policy;
-			} else {
-				fps_loading_policy = loading_policy_90;
-				fps_llf_task_policy = llf_task_policy_90;
-			}
-
 			fbt_set_per_task_min_cap(fl->pid,
-				(!fps_loading_policy) ? 0
-				: min_cap * fps_loading_policy / 100);
-			fbt_set_task_policy(fl, fps_llf_task_policy,
+				(!loading_policy) ? 0
+				: min_cap * loading_policy / 100);
+			fbt_set_task_policy(fl, llf_task_policy,
 					FPSGO_PREFER_LITTLE, 0);
 		} else if (heavy_pid && heavy_pid == fl->pid) {
 			fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id,
 					heavy_pid, "heavy_pid");
 			fbt_set_per_task_min_cap(fl->pid, min_cap);
-			if (do_affinity)
+			if (boost_affinity)
 				fbt_set_task_policy(fl, FPSGO_TPOLICY_AFFINITY,
 						FPSGO_PREFER_BIG, 1);
-		} else if (do_affinity && thr->pid == fl->pid && max_cl_core_num > 1) {
+		} else if (boost_affinity && thr->pid == fl->pid && max_cl_core_num > 1) {
 			fbt_set_per_task_min_cap(fl->pid, min_cap);
 			fbt_set_task_policy(fl, FPSGO_TPOLICY_AFFINITY,
 						FPSGO_PREFER_BIG, 1);
 		} else {
 			fbt_set_per_task_min_cap(fl->pid, min_cap);
-			if (do_affinity && heavy_pid && heavy_pid != fl->pid)
+			if (boost_affinity && heavy_pid && heavy_pid != fl->pid)
 				fbt_set_task_policy(fl, FPSGO_TPOLICY_AFFINITY,
 						FPSGO_PREFER_L_M, 0);
 			else
@@ -1778,7 +1745,7 @@ static void fbt_do_sjerk(struct work_struct *work)
 		goto EXIT;
 
 	blc_wt = fbt_get_new_base_blc(pld, thr->boost_info.last_blc,
-			rescue_enhance_f, rescue_second_copp);
+			rescue_second_enhance_f, rescue_second_copp);
 
 	thrm_aware_switch(0);
 	fbt_set_hard_limit_locked(FPSGO_HARD_NONE, pld);
@@ -2002,8 +1969,7 @@ static unsigned long long fbt_get_next_vsync_locked(
 static void fbt_check_cm_limit(struct render_info *thread_info,
 		long long runtime)
 {
-	int last_blc = 0, tfps_level;
-	int big_cap, time_diff;
+	int last_blc = 0;
 
 	if (!thread_info || !runtime)
 		return;
@@ -2023,20 +1989,8 @@ static void fbt_check_cm_limit(struct render_info *thread_info,
 	if (!last_blc)
 		return;
 
-	tfps_level = fbt_get_fps_level(thread_info->boost_info.target_fps);
-	if (tfps_level == fbt_fps_level[0]) {
-		big_cap = cm_big_cap;
-		time_diff = cm_tdiff;
-	} else if (tfps_level == fbt_fps_level[1]) {
-		big_cap = cm_big_cap_90;
-		time_diff = cm_tdiff_90;
-	} else {
-		big_cap = cm_big_cap_120;
-		time_diff = cm_tdiff_120;
-	}
-
-	if (last_blc > big_cap &&
-		runtime > thread_info->boost_info.target_time + time_diff)
+	if (last_blc > cm_big_cap &&
+		runtime > thread_info->boost_info.target_time + cm_tdiff)
 		fbt_notify_CM_limit(1);
 	else
 		fbt_notify_CM_limit(0);
@@ -2457,41 +2411,15 @@ static unsigned long long fbt_get_t2wnt(int target_fps,
 	unsigned long long next_vsync, queue_end, rescue_length;
 	unsigned long long t2wnt = 0ULL;
 	unsigned long long ts = fpsgo_get_time();
-	int fps_rescue_percent, fps_short_rescue_ns, fps_min_rescue_percent;
 	unsigned long long t_cpu_target;
-	int target_fps_level;
 
 	mutex_lock(&fbt_mlock);
 
 	target_fps = min_t(int, target_fps, TARGET_UNLIMITED_FPS);
 
-	target_fps_level = fbt_get_fps_level(target_fps);
-
 	t_cpu_target = (unsigned long long)FBTCPU_SEC_DIVIDER;
 	t_cpu_target = div64_u64(t_cpu_target,
 		(unsigned long long)target_fps);
-
-	if (target_fps_level == fbt_fps_level[0]) {
-		fps_rescue_percent = rescue_percent;
-		fps_short_rescue_ns = short_rescue_ns;
-		fps_min_rescue_percent = min_rescue_percent;
-	} else if (target_fps_level == fbt_fps_level[1]) {
-		fps_rescue_percent = rescue_percent_90;
-		fps_min_rescue_percent = rescue_percent_90;
-		fps_short_rescue_ns =
-			(rescue_percent_90 == DEF_RESCUE_PERCENT)
-			? DEF_RESCUE_NS_TH : vsync_period;
-	} else {
-		fps_rescue_percent = rescue_percent_120;
-		fps_min_rescue_percent = rescue_percent_120;
-		fps_short_rescue_ns =
-			(rescue_percent_120 == DEF_RESCUE_PERCENT)
-			? DEF_RESCUE_NS_TH : vsync_period;
-	}
-
-	xgf_trace("fps=%d, rescue@(%d, %d, %d)", target_fps_level,
-			fps_rescue_percent, fps_min_rescue_percent,
-			fps_short_rescue_ns);
 
 	queue_end = queue_start + t_cpu_target;
 	next_vsync = fbt_get_next_vsync_locked(queue_end);
@@ -2504,7 +2432,7 @@ static unsigned long long fbt_get_t2wnt(int target_fps,
 			ts, next_vsync, short_min_rescue_p);
 	else {
 		t2wnt = fbt_cal_t2wnt(t_cpu_target,
-				ts, next_vsync, fps_rescue_percent);
+				ts, next_vsync, rescue_percent);
 		if (t2wnt == 0ULL)
 			goto ERROR;
 
@@ -2512,10 +2440,10 @@ static unsigned long long fbt_get_t2wnt(int target_fps,
 			t2wnt = t_cpu_target;
 
 			rescue_length = next_vsync - t2wnt - queue_start;
-			if (rescue_length <= fps_short_rescue_ns)
+			if (rescue_length <= short_rescue_ns)
 				t2wnt = fbt_cal_t2wnt(t_cpu_target,
 					ts, next_vsync,
-					fps_min_rescue_percent);
+					min_rescue_percent);
 		}
 	}
 ERROR:
@@ -2560,15 +2488,15 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 	int s32_t_Q2Q = nsec_to_usec(t_Q2Q_ns);
 	int s32_t_enq_len = nsec_to_usec(t_enq_len_ns);
 	int s32_t_deq_len = nsec_to_usec(t_deq_len_ns);
-	int avg = 0, std_square = 0, i, quota_adj = 0, qr_quota = 0;
+	int avg = 0, std_square = 0, i, quota_adj = 0;
 	int s32_target_time;
 
 	if (!gcc_fps_margin && target_fps == 60)
-		target_time = vsync_duration_us_60;
+		target_time = max(target_time, (long long)vsync_duration_us_60);
 	if (!gcc_fps_margin && target_fps == 90)
-		target_time = vsync_duration_us_90;
+		target_time = max(target_time, (long long)vsync_duration_us_90);
 	if (!gcc_fps_margin && target_fps == 120)
-		target_time = vsync_duration_us_120;
+		target_time = max(target_time, (long long)vsync_duration_us_120);
 
 	s32_target_time = target_time;
 
@@ -2577,13 +2505,15 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 		boost_info->quota_cnt = 0;
 		boost_info->quota = 0;
 		boost_info->quota_fps = target_fps;
+		boost_info->enq_sum = 0;
 	}
 
-	if (s32_t_enq_len * 100 > s32_target_time * gcc_enq_bound_thrs ||
+	if (boost_info->enq_avg * 100 > s32_target_time * gcc_enq_bound_thrs ||
 		s32_t_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs) {
 		boost_info->quota_cur_idx = -1;
 		boost_info->quota_cnt = 0;
 		boost_info->quota = 0;
+		boost_info->enq_sum = 0;
 	}
 
 	new_idx = boost_info->quota_cur_idx + 1;
@@ -2591,14 +2521,17 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 	if (new_idx >= QUOTA_MAX_SIZE)
 		new_idx -= QUOTA_MAX_SIZE;
 
-	if (s32_t_enq_len * 100 > s32_target_time * gcc_enq_bound_thrs)
-		boost_info->quota_raw[new_idx] = target_time * gcc_enq_bound_quota / 100;
+	if (boost_info->enq_avg * 100 > s32_target_time * gcc_enq_bound_thrs)
+		boost_info->quota_raw[new_idx] = s32_target_time * gcc_enq_bound_quota / 100;
 	else if (s32_t_deq_len * 100 > s32_target_time * gcc_deq_bound_thrs)
-		boost_info->quota_raw[new_idx] = target_time * gcc_deq_bound_quota / 100;
+		boost_info->quota_raw[new_idx] = s32_target_time * gcc_deq_bound_quota / 100;
 	else
 		boost_info->quota_raw[new_idx] = target_time - s32_t_Q2Q;
 
 	boost_info->quota += boost_info->quota_raw[new_idx];
+
+	boost_info->enq_raw[new_idx] = s32_t_enq_len;
+	boost_info->enq_sum += boost_info->enq_raw[new_idx];
 
 	if (boost_info->quota_cnt >= gcc_window_size) {
 		rm_idx = new_idx - gcc_window_size;
@@ -2610,6 +2543,7 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 			first_idx -= QUOTA_MAX_SIZE;
 
 		boost_info->quota -= boost_info->quota_raw[rm_idx];
+		boost_info->enq_sum -= boost_info->enq_raw[rm_idx];
 	} else {
 		first_idx = new_idx - boost_info->quota_cnt;
 		if (first_idx < 0)
@@ -2621,6 +2555,7 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 
 	/* remove outlier */
 	avg = boost_info->quota / boost_info->quota_cnt;
+	boost_info->enq_avg = boost_info->enq_sum / boost_info->quota_cnt;
 
 
 	if (first_idx <= new_idx)
@@ -2635,7 +2570,7 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 			std_square += (boost_info->quota_raw[i] - avg) *
 			(boost_info->quota_raw[i] - avg);
 	}
-	do_div(std_square, boost_info->quota_cnt);
+	std_square = std_square / boost_info->quota_cnt;
 
 	if (first_idx <= new_idx) {
 		for (i = first_idx; i <= new_idx; i++) {
@@ -2644,10 +2579,6 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				gcc_std_filter * gcc_std_filter * std_square ||
 				s32_t_Q2Q < 2 * target_time)
 				quota_adj += boost_info->quota_raw[i];
-
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-				boost_info->quota_raw[i] % s32_target_time :
-				boost_info->quota_raw[i];
 		}
 	} else {
 		for (i = first_idx; i < QUOTA_MAX_SIZE ; i++) {
@@ -2656,10 +2587,6 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				gcc_std_filter * gcc_std_filter * std_square ||
 				s32_t_Q2Q < 2 * target_time)
 				quota_adj += boost_info->quota_raw[i];
-
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-				boost_info->quota_raw[i] % s32_target_time :
-				boost_info->quota_raw[i];
 		}
 		for (i = 0; i <= new_idx ; i++) {
 			if ((boost_info->quota_raw[i] - avg) *
@@ -2667,32 +2594,26 @@ int update_quota(struct fbt_boost_info *boost_info, int target_fps,
 				gcc_std_filter * gcc_std_filter * std_square ||
 				s32_t_Q2Q < 2 * target_time)
 				quota_adj += boost_info->quota_raw[i];
-
-			qr_quota += (boost_info->quota_raw[i] < -s32_target_time) ?
-				boost_info->quota_raw[i] % s32_target_time :
-				boost_info->quota_raw[i];
 		}
 	}
 
 	boost_info->quota_adj = quota_adj;
 
-	/* default: mod each frame */
-	if (qr_mod_frame)
-		boost_info->quota_mod = qr_quota % s32_target_time;
+	/* default: clamp if quota < -target_time */
+	if (qr_mod_frame) /*  */
+		boost_info->quota_mod = (boost_info->quota < -s32_target_time) ?
+			-s32_target_time : boost_info->quota;
 	else if (qr_filter_outlier)
 		boost_info->quota_mod = boost_info->quota_adj;
 	else
 		boost_info->quota_mod = boost_info->quota;
 
-	/* mod target time only if quota < 0 */
-	if (boost_info->quota_mod < 0)
-		boost_info->quota_mod = boost_info->quota_mod % s32_target_time;
-
-
-	fpsgo_main_trace("%s raw[%d]:%d raw[%d]:%d cnt:%d sum:%d avg:%d std_sqr:%d quota:%d mod:%d",
+	fpsgo_main_trace(
+		"%s raw[%d]:%d raw[%d]:%d cnt:%d sum:%d avg:%d std_sqr:%d quota:%d mod:%d enq:%d enq_avg:%d",
 		__func__, first_idx, boost_info->quota_raw[first_idx],
 		new_idx, boost_info->quota_raw[new_idx], boost_info->quota_cnt,
-		boost_info->quota, avg, std_square, quota_adj, boost_info->quota_mod);
+		boost_info->quota, avg, std_square, quota_adj, boost_info->quota_mod,
+		s32_t_enq_len, boost_info->enq_avg);
 
 	return s32_target_time;
 }
@@ -2720,9 +2641,9 @@ int fbt_eva_gcc(struct fbt_boost_info *boost_info,
 		target_time = vsync_duration_us_120;
 
 	gcc_down_window = target_fps * gcc_down_sec_pct;
-	do_div(gcc_down_window, 100);
+	gcc_down_window = gcc_down_window / 100;
 	gcc_up_window = target_fps * gcc_up_sec_pct;
-	do_div(gcc_up_window, 100);
+	gcc_up_window = gcc_up_window / 100;
 
 	if (ts - (boost_info->gcc_pct_reset_ts) > 60000000000) {
 		boost_info->gcc_pct_thrs = 1000;
@@ -3029,23 +2950,6 @@ static int fbt_boost_policy(
 	if (blc_wt) {
 		 /* ignore hwui hint || not hwui */
 		if (qr_enable && (!qr_hwui_hint || thread_info->ux != 1)) {
-			int tfps_level = fbt_get_fps_level(target_fps);
-			int fps_qr_t2wnt_x, fps_qr_t2wnt_y_p, fps_qr_t2wnt_y_n;
-
-			if (tfps_level == fbt_fps_level[0]) {
-				fps_qr_t2wnt_x = qr_t2wnt_x;
-				fps_qr_t2wnt_y_p = qr_t2wnt_y_p;
-				fps_qr_t2wnt_y_n = qr_t2wnt_y_n;
-			} else if (tfps_level == fbt_fps_level[1]) {
-				fps_qr_t2wnt_x = qr_t2wnt_x_90;
-				fps_qr_t2wnt_y_p = qr_t2wnt_y_p_90;
-				fps_qr_t2wnt_y_n = qr_t2wnt_y_n_90;
-			} else {
-				fps_qr_t2wnt_x = qr_t2wnt_x_120;
-				fps_qr_t2wnt_y_p = qr_t2wnt_y_p_120;
-				fps_qr_t2wnt_y_n = qr_t2wnt_y_n_120;
-			}
-
 			rescue_target_t = div64_s64(1000000, target_fps); /* unit:1us */
 
 			/* t2wnt = target_time * (1+x) + quota * y */
@@ -3054,19 +2958,21 @@ static int fbt_boost_policy(
 				rescue_target_t * 1000, "t2wnt");
 
 			/* rescue_target_t, unit: 1us */
-			rescue_target_t = (fps_qr_t2wnt_x) ?
-				rescue_target_t * 10 * (100 + fps_qr_t2wnt_x) :
+			rescue_target_t = (qr_t2wnt_x) ?
+				rescue_target_t * 10 * (100 + qr_t2wnt_x) :
 				rescue_target_t * 1000;
 
 			if (boost_info->quota_mod > 0) { /* qr_quota, unit: 1us */
 				/* qr_t2wnt_y_p: percentage */
-				qr_quota_adj = (fps_qr_t2wnt_y_p != 100) ?
-					boost_info->quota_mod * 10 * fps_qr_t2wnt_y_p :
-					boost_info->quota_mod * 1000;
+				qr_quota_adj = (qr_t2wnt_y_p != 100) ?
+					(long long)(boost_info->quota_mod) * 10 *
+					(long long)qr_t2wnt_y_p :
+					(long long)(boost_info->quota_mod) * 1000;
 			} else {
 				 /* qr_t2wnt_y_n: percentage */
-				qr_quota_adj = (fps_qr_t2wnt_y_n != 0) ?
-					boost_info->quota_mod * 10 * fps_qr_t2wnt_y_n :
+				qr_quota_adj = (qr_t2wnt_y_n != 0) ?
+					(long long)(boost_info->quota_mod) * 10 *
+					(long long)qr_t2wnt_y_n :
 					0;
 			}
 			t2wnt = (rescue_target_t + qr_quota_adj > 0)
@@ -3100,6 +3006,8 @@ static int fbt_boost_policy(
 			}
 
 			if (t2wnt > FBTCPU_SEC_DIVIDER) {
+				fpsgo_main_trace("%s t2wnt:%lld > FBTCPU_SEC_DIVIDER",
+					__func__, t2wnt);
 				t2wnt = FBTCPU_SEC_DIVIDER;
 				fpsgo_systrace_c_fbt_gm(pid, buffer_id, t2wnt,
 					"t2wnt");
@@ -3218,7 +3126,7 @@ static int fbt_adjust_loading(struct render_info *thr, unsigned long long ts,
 	int new_ts;
 	long loading = 0L;
 	long *loading_cl;
-	unsigned int temp_obv, *temp_obv_cl;
+	unsigned int temp_obv, *temp_obv_cl, *temp_stat_cl;
 	unsigned long long loading_result = 0U;
 	unsigned long flags;
 	int i;
@@ -3226,19 +3134,21 @@ static int fbt_adjust_loading(struct render_info *thr, unsigned long long ts,
 	new_ts = nsec_to_100usec(ts);
 
 	loading_cl = kcalloc(cluster_num, sizeof(long), GFP_KERNEL);
-	if (!loading_cl)
-		return 0;
-
 	temp_obv_cl = kcalloc(cluster_num, sizeof(unsigned int), GFP_KERNEL);
-	if (!temp_obv_cl) {
+	temp_stat_cl = kcalloc(cluster_num, sizeof(unsigned int), GFP_KERNEL);
+	if (!loading_cl || !temp_obv_cl || !temp_stat_cl) {
 		kfree(loading_cl);
+		kfree(temp_obv_cl);
+		kfree(temp_stat_cl);
 		return 0;
 	}
 
 	spin_lock_irqsave(&freq_slock, flags);
 	temp_obv = last_obv;
-	for (i = 0; i < cluster_num; i++)
+	for (i = 0; i < cluster_num; i++) {
 		temp_obv_cl[i] = clus_obv[i];
+		temp_stat_cl[i] = clus_status[i];
+	}
 	spin_unlock_irqrestore(&freq_slock, flags);
 
 	spin_lock_irqsave(&loading_slock, flags);
@@ -3261,13 +3171,16 @@ static int fbt_adjust_loading(struct render_info *thr, unsigned long long ts,
 		}
 
 		for (i = 0; i < cluster_num; i++) {
-			loading_result = fbt_est_loading(new_ts,
+			if (!temp_stat_cl[i]) {
+				loading_result = fbt_est_loading(new_ts,
 				thr->pLoading->last_cb_ts, temp_obv_cl[i]);
-			atomic_add_return(loading_result,
+				atomic_add_return(loading_result,
 					&thr->pLoading->loading_cl[i]);
-			fpsgo_systrace_c_fbt_gm(thr->pid, thr->buffer_id,
+				fpsgo_systrace_c_fbt_gm(thr->pid, thr->buffer_id,
 				atomic_read(&thr->pLoading->loading_cl[i]),
 				"loading_cl[%d]", i);
+			}
+
 			loading_cl[i] =
 				atomic_read(&thr->pLoading->loading_cl[i]);
 			atomic_set(&thr->pLoading->loading_cl[i], 0);
@@ -3301,17 +3214,23 @@ SKIP:
 		first_cluster = clamp(first_cluster, 0, cluster_num - 1);
 		sec_cluster = clamp(sec_cluster, 0, cluster_num - 1);
 
-		loading_result = thr->boost_info.loading_weight;
-		loading_result = loading_result *
-					loading_cl[sec_cluster];
-		loading_result += (100 - thr->boost_info.loading_weight) *
-					loading_cl[first_cluster];
-		do_div(loading_result, 100);
-		loading = (long)loading_result;
+		if (loading_cl[first_cluster] && loading_cl[sec_cluster]) {
+			loading_result = thr->boost_info.loading_weight;
+			loading_result = loading_result *
+						loading_cl[sec_cluster];
+			loading_result += (100 - thr->boost_info.loading_weight) *
+						loading_cl[first_cluster];
+			do_div(loading_result, 100);
+			loading = (long)loading_result;
+		} else if (loading_cl[first_cluster])
+			loading = loading_cl[first_cluster];
+		else if (loading_cl[sec_cluster])
+			loading = loading_cl[sec_cluster];
 	}
 
 	kfree(loading_cl);
 	kfree(temp_obv_cl);
+	kfree(temp_stat_cl);
 	return loading;
 }
 
@@ -3569,6 +3488,9 @@ void fpsgo_ctrl2fbt_cpufreq_cb(int cid, unsigned long freq)
 				goto SKIP;
 
 			for (i = 0; i < cluster_num; i++) {
+				if (clus_status[i])
+					continue;
+
 				loading_result =
 					fbt_est_loading(new_ts,
 					pos->last_cb_ts, clus_obv[i]);
@@ -3590,6 +3512,11 @@ SKIP:
 	clus_obv[cid] = curr_obv;
 
 	for (i = 0; i < cluster_num; i++) {
+		clus_status[i] = fbt_is_cl_isolated(i, 1);
+
+		if (clus_status[i])
+			continue;
+
 		if (curr_obv < clus_obv[i])
 			curr_obv = clus_obv[i];
 	}
@@ -3602,6 +3529,7 @@ SKIP:
 void fpsgo_ctrl2fbt_vsync(unsigned long long ts)
 {
 	unsigned long long vsync_duration;
+	unsigned long long temp_duration;
 
 	if (!fbt_is_enable())
 		return;
@@ -3616,11 +3544,12 @@ void fpsgo_ctrl2fbt_vsync(unsigned long long ts)
 		if (vsync_duration_us_60 == 0)
 			vsync_duration_us_60 = 1000000 / 60;
 		else {
+			temp_duration = vsync_duration * 3 + vsync_duration_us_60 * 7;
+			do_div(temp_duration, 10);
 			vsync_duration_us_60 =
 				vsync_duration < 1000000 / 60 * 15 / 10 &&
 				vsync_duration > 1000000 / 60 / 2 ?
-				(vsync_duration * 3 + vsync_duration_us_60 * 7) / 10 :
-				vsync_duration_us_60;
+				temp_duration : vsync_duration_us_60;
 		}
 
 	} else if (_gdfrc_fps_limit == 90) {
@@ -3629,11 +3558,12 @@ void fpsgo_ctrl2fbt_vsync(unsigned long long ts)
 		if (vsync_duration_us_90 == 0)
 			vsync_duration_us_90 = 1000000 / 90;
 		else {
+			temp_duration = vsync_duration * 3 + vsync_duration_us_90 * 7;
+			do_div(temp_duration, 10);
 			vsync_duration_us_90 =
 				vsync_duration < 1000000 / 90 * 15 / 10 &&
 				vsync_duration > 1000000 / 90 / 2 ?
-				(vsync_duration * 3 + vsync_duration_us_90 * 7) / 10 :
-				vsync_duration_us_90;
+				temp_duration : vsync_duration_us_90;
 		}
 	} else if (_gdfrc_fps_limit == 120) {
 		vsync_duration_us_60 = 0;
@@ -3641,11 +3571,12 @@ void fpsgo_ctrl2fbt_vsync(unsigned long long ts)
 		if (vsync_duration_us_120 == 0)
 			vsync_duration_us_120 = 1000000 / 120;
 		else {
+			temp_duration = vsync_duration * 3 + vsync_duration_us_120 * 7;
+			do_div(temp_duration, 10);
 			vsync_duration_us_120 =
 				vsync_duration < 1000000 / 120 * 15 / 10 &&
 				vsync_duration > 1000000 / 120 / 2 ?
-				(vsync_duration * 3 + vsync_duration_us_120 * 7) / 10 :
-				vsync_duration_us_120;
+				temp_duration : vsync_duration_us_120;
 		}
 	}
 
@@ -4029,6 +3960,17 @@ int fpsgo_base2fbt_is_finished(struct render_info *thr)
 	return 1;
 }
 
+void fpsgo_base2fbt_stop_boost(struct render_info *thr)
+{
+	if (!thr)
+		return;
+
+	fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id, 1, "stop_boost");
+	fpsgo_systrace_c_fbt(thr->pid, thr->buffer_id, 0, "stop_boost");
+
+	fbt_reset_boost(thr);
+}
+
 static int fbt_get_opp_by_freq(int cluster, unsigned int freq)
 {
 	int opp;
@@ -4364,45 +4306,6 @@ static ssize_t light_loading_policy_store(struct kobject *kobj,
 
 static KOBJ_ATTR_RW(light_loading_policy);
 
-static ssize_t light_loading_policy_90_show(struct kobject *kobj,
-		struct kobj_attribute *attr,
-		char *buf)
-{
-	int val = -1;
-
-	mutex_lock(&fbt_mlock);
-	val = loading_policy_90;
-	mutex_unlock(&fbt_mlock);
-
-	return scnprintf(buf, PAGE_SIZE, "%d\n", val);
-}
-
-static ssize_t light_loading_policy_90_store(struct kobject *kobj,
-		struct kobj_attribute *attr,
-		const char *buf, size_t count)
-{
-	int val = -1;
-	char acBuffer[FPSGO_SYSFS_MAX_BUFF_SIZE];
-	int arg;
-
-	if ((count > 0) && (count < FPSGO_SYSFS_MAX_BUFF_SIZE)) {
-		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
-			if (kstrtoint(acBuffer, 0, &arg) == 0)
-				val = arg;
-			else
-				return count;
-		}
-	}
-
-	if (val < 0 || val > 100)
-		return count;
-
-	loading_policy_90 = val;
-
-	return count;
-}
-
-static KOBJ_ATTR_RW(light_loading_policy_90);
 
 static ssize_t switch_idleprefer_show(struct kobject *kobj,
 		struct kobj_attribute *attr,
@@ -4876,66 +4779,6 @@ static ssize_t llf_task_policy_store(struct kobject *kobj,
 
 static KOBJ_ATTR_RW(llf_task_policy);
 
-static ssize_t llf_task_policy_90_show(struct kobject *kobj,
-		struct kobj_attribute *attr,
-		char *buf)
-{
-	int val = -1;
-
-	mutex_lock(&fbt_mlock);
-	val = llf_task_policy_90;
-	mutex_unlock(&fbt_mlock);
-
-	return scnprintf(buf, PAGE_SIZE, "%d\n", val);
-}
-
-static ssize_t llf_task_policy_90_store(struct kobject *kobj,
-		struct kobj_attribute *attr,
-		const char *buf, size_t count)
-{
-	int val = 0;
-	int orig_policy;
-	char acBuffer[FPSGO_SYSFS_MAX_BUFF_SIZE];
-	int arg;
-
-	if ((count > 0) && (count < FPSGO_SYSFS_MAX_BUFF_SIZE)) {
-		if (scnprintf(acBuffer, FPSGO_SYSFS_MAX_BUFF_SIZE, "%s", buf)) {
-			if (kstrtoint(acBuffer, 0, &arg) == 0)
-				val = arg;
-			else
-				return count;
-		}
-	}
-
-	mutex_lock(&fbt_mlock);
-	if (!fbt_enable) {
-		mutex_unlock(&fbt_mlock);
-		return count;
-	}
-
-	if (val < FPSGO_TPOLICY_NONE || val >= FPSGO_TPOLICY_MAX) {
-		mutex_unlock(&fbt_mlock);
-		return count;
-	}
-
-	if (llf_task_policy_90 == val) {
-		mutex_unlock(&fbt_mlock);
-		return count;
-	}
-
-	orig_policy = llf_task_policy_90;
-	llf_task_policy_90 = val;
-	fpsgo_main_trace("fpsgo set llf_task_policy_90 %d",
-		llf_task_policy_90);
-	mutex_unlock(&fbt_mlock);
-
-	schedule_work(&llf_switch_policy_work);
-
-	return count;
-}
-
-static KOBJ_ATTR_RW(llf_task_policy_90);
-
 static ssize_t limit_cfreq_show(struct kobject *kobj,
 		struct kobj_attribute *attr,
 		char *buf)
@@ -5245,8 +5088,6 @@ void __exit fbt_cpu_exit(void)
 	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_light_loading_policy);
 	fpsgo_sysfs_remove_file(fbt_kobj,
-			&kobj_attr_light_loading_policy_90);
-	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_fbt_info);
 	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_switch_idleprefer);
@@ -5263,8 +5104,6 @@ void __exit fbt_cpu_exit(void)
 	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_llf_task_policy);
 	fpsgo_sysfs_remove_file(fbt_kobj,
-			&kobj_attr_llf_task_policy_90);
-	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_boost_ta);
 	fpsgo_sysfs_remove_file(fbt_kobj,
 			&kobj_attr_limit_cfreq);
@@ -5279,6 +5118,7 @@ void __exit fbt_cpu_exit(void)
 
 	kfree(base_opp);
 	kfree(clus_obv);
+	kfree(clus_status);
 	kfree(cpu_dvfs);
 	kfree(clus_max_cap);
 	kfree(limit_clus_ceil);
@@ -5294,8 +5134,6 @@ int __init fbt_cpu_init(void)
 	rescue_percent = DEF_RESCUE_PERCENT;
 	min_rescue_percent = 10;
 	short_rescue_ns = DEF_RESCUE_NS_TH;
-	rescue_percent_90 = DEF_RESCUE_PERCENT;
-	rescue_percent_120 = DEF_RESCUE_PERCENT;
 	short_min_rescue_p = 0;
 	run_time_percent = 50;
 	deqtime_bound = TIME_3MS;
@@ -5306,14 +5144,15 @@ int __init fbt_cpu_init(void)
 	loading_th = 0;
 	sampling_period_MS = 256;
 	rescue_enhance_f = 25;
+	rescue_second_enhance_f = 100;
 	loading_adj_cnt = fbt_get_default_adj_count();
 	loading_debnc_cnt = 30;
 	loading_time_diff = fbt_get_default_adj_tdiff();
 	fps_level_range = 10;
 	check_running = 1;
 	uboost_enhance_f = fbt_get_default_uboost();
-	cm_big_cap = cm_big_cap_90 = cm_big_cap_120 = 95;
-	cm_tdiff = cm_tdiff_90 = cm_tdiff_120 = TIME_1MS;
+	cm_big_cap = 95;
+	cm_tdiff = TIME_1MS;
 	rescue_second_time = 2;
 	rescue_second_copp = NR_FREQ_CPU - 1;
 
@@ -5337,12 +5176,9 @@ int __init fbt_cpu_init(void)
 	qr_t2wnt_x = DEFAULT_QR_T2WNT_X;
 	qr_t2wnt_y_p = DEFAULT_QR_T2WNT_Y_P;
 	qr_t2wnt_y_n = DEFAULT_QR_T2WNT_Y_N;
-	qr_t2wnt_x_90 = qr_t2wnt_x_120 = DEFAULT_QR_T2WNT_X;
-	qr_t2wnt_y_p_90 = qr_t2wnt_y_p_120 = DEFAULT_QR_T2WNT_Y_P;
-	qr_t2wnt_y_n_90 = qr_t2wnt_y_n_120 = DEFAULT_QR_T2WNT_Y_N;
 	qr_hwui_hint = DEFAULT_QR_HWUI_HINT;
 	qr_filter_outlier = 0;
-	qr_mod_frame = 0;
+	qr_mod_frame = 1;
 	qr_debug = 0;
 
 	gcc_enable = fbt_get_default_gcc_enable();
@@ -5372,6 +5208,9 @@ int __init fbt_cpu_init(void)
 	clus_obv =
 		kcalloc(cluster_num, sizeof(unsigned int), GFP_KERNEL);
 
+	clus_status =
+		kcalloc(cluster_num, sizeof(unsigned int), GFP_KERNEL);
+
 	cpu_dvfs =
 		kcalloc(cluster_num, sizeof(struct fbt_cpu_dvfs_info),
 				GFP_KERNEL);
@@ -5390,8 +5229,6 @@ int __init fbt_cpu_init(void)
 		fpsgo_sysfs_create_file(fbt_kobj,
 				&kobj_attr_light_loading_policy);
 		fpsgo_sysfs_create_file(fbt_kobj,
-				&kobj_attr_light_loading_policy_90);
-		fpsgo_sysfs_create_file(fbt_kobj,
 				&kobj_attr_fbt_info);
 		fpsgo_sysfs_create_file(fbt_kobj,
 				&kobj_attr_switch_idleprefer);
@@ -5407,8 +5244,6 @@ int __init fbt_cpu_init(void)
 				&kobj_attr_ultra_rescue);
 		fpsgo_sysfs_create_file(fbt_kobj,
 				&kobj_attr_llf_task_policy);
-		fpsgo_sysfs_create_file(fbt_kobj,
-				&kobj_attr_llf_task_policy_90);
 		fpsgo_sysfs_create_file(fbt_kobj,
 				&kobj_attr_boost_ta);
 		fpsgo_sysfs_create_file(fbt_kobj,

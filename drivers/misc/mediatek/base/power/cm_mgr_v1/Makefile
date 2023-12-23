@@ -32,7 +32,10 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v1
 ccflags-y += -DUSE_SSMP_VER_V1
 endif
 
-
+ifeq ($(CONFIG_MACH_MT6781),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2
+ccflags-y += -DUSE_SSMP_VER_V2
+endif
 
 ifneq ($(wildcard $(srctree)/drivers/misc/mediatek/met_drv/),)
 ccflags-y += -DMET_SUPPORT
@@ -56,7 +59,6 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include/mach \
-	-I$(srctree)/drivers/devfreq/helio-dvfsrc-v3/ \
 	-I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/include \
 	-I$(srctree)/include/memory/mediatek/ \
@@ -80,6 +82,10 @@ obj-y += mt6833/
 else ifeq ($(CONFIG_MACH_MT6877),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6877
 obj-y += mt6877/
+else ifeq ($(CONFIG_MACH_MT6781),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/mt6781
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6781
+obj-y += mt6781/
 else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/$(CONFIG_MTK_PLATFORM)
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/

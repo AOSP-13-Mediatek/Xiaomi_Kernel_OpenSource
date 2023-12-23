@@ -424,6 +424,8 @@ struct msdc_host {
 	u32                     power_flash;
 
 	struct pm_qos_request   msdc_pm_qos_req; /* use for pm qos */
+	struct pm_qos_request   *req_vcore;
+	int                     vcore_opp;
 
 	struct clk              *clk_ctl;
 	struct clk              *aes_clk_ctl;
@@ -729,6 +731,8 @@ void msdc_save_timing_setting(struct msdc_host *host);
 void msdc_set_bad_card_and_remove(struct msdc_host *host);
 void msdc_ops_set_bad_card_and_remove(struct mmc_host *mmc);
 void msdc_remove_card(struct work_struct *work);
+void msdc_select_new_tx(struct msdc_host *host);
+void msdc_loop_setting(struct msdc_host *host, struct mmc_ios *ios);
 void msdc_new_tx_new_rx_setting(struct msdc_host *host);
 void msdc_new_tx_old_rx_setting(struct msdc_host *host);
 void msdc_new_rx_tx_timing_setting(struct msdc_host *host);

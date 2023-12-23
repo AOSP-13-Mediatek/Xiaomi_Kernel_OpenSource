@@ -249,7 +249,7 @@ static void lcm_panel_init(struct lcm *ctx)
 		0x32, 0x03, 0xFF, 0x00, 0x00, 0x25);
 	lcm_dcs_write_seq_static(ctx, 0xBE, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-	lcm_dcs_write_seq_static(ctx, 0xC0, 0x00, 0xDB, 0x00, 0xDB, 0x04,
+	lcm_dcs_write_seq_static(ctx, 0xC0, 0x00, 0xD9, 0x00, 0xD9, 0x04,
 		0x08, 0xE8, 0x00, 0x04, 0x00, 0x03, 0x78);
 	lcm_dcs_write_seq_static(ctx, 0xC1, 0x30, 0x00, 0x00, 0x11, 0x11,
 		0x00, 0x00, 0x00, 0x22, 0x00, 0x05, 0x20, 0xFA, 0x00, 0x08,
@@ -673,7 +673,10 @@ static struct mtk_panel_params ext_params = {
 		.count = 1,
 		.para_list[0] = 0x1c,
 	},
-
+	.dyn = {
+		.switch_en = 1,
+		.pll_clk = 550,
+	},
 };
 
 static struct mtk_panel_funcs ext_funcs = {
@@ -785,7 +788,9 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return PTR_ERR(ctx->reset_gpio);
 	}
 	devm_gpiod_put(dev, ctx->reset_gpio);
-#ifndef CONFIG_RT4831A_I2C
+#if defined(CONFIG_RT5081_PMU_DSV) || defined(CONFIG_MT6370_PMU_DSV)
+	lcm_panel_bias_enable();
+#else
 	ctx->bias_pos = devm_gpiod_get_index(dev, "bias", 0, GPIOD_OUT_HIGH);
 	if (IS_ERR(ctx->bias_pos)) {
 		dev_err(dev, "%s: cannot get bias-pos 0 %ld\n",

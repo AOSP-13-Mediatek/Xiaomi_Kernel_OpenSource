@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 # Copyright (c) 2019 MediaTek Inc.
-# Copyright (C) 2021 XiaoMi, Inc.
 #
 
 ifeq ($(CONFIG_MACH_MT6833),y)
@@ -10,6 +9,8 @@ else ifeq ($(CONFIG_MACH_MT6893),y)
 	PDIR = mt6893
 else ifeq ($(CONFIG_MACH_MT6877),y)
 	PDIR = mt6877
+else ifeq ($(CONFIG_MACH_MT6781),y)
+	PDIR = mt6781
 else
 	PDIR = $(MTK_PLATFORM)
 endif
@@ -30,7 +31,11 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/imgsensor/inc/
 ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT),y)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/v1
+ifeq ($(CONFIG_MACH_MT6781),y)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/$(PDIR)
+else
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/$(MTK_PLATFORM)
+endif
 ifeq ($(CONFIG_MACH_MT6877),y)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/mcupm/$(MTK_PLATFORM)
 else
@@ -71,6 +76,7 @@ endif
 
 obj-$(CONFIG_THERMAL) += mtk_tsAll.o
 endif
+
 
 
 ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6580"))
@@ -410,7 +416,11 @@ obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
 
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
+ifneq ($(filter "MT76%", $(CONFIG_MTK_COMBO_CHIP)),)
+    obj-$(CONFIG_THERMAL) += mtk_ts_wmt_766x.o
+else
     obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o
+endif
 endif
 
 obj-$(CONFIG_THERMAL) += mtk_tsAll.o
@@ -430,6 +440,9 @@ obj-$(CONFIG_THERMAL) += mtk_ts_pa.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pa_thput.o
 obj-$(CONFIG_THERMAL) += mtk_ts_pmic.o
 obj-$(CONFIG_THERMAL) += mtk_ts_charger.o
+obj-$(CONFIG_THERMAL) += mtk_ts_quiet.o
+obj-$(CONFIG_THERMAL) += mtk_ts_lcd_ntc.o
+obj-$(CONFIG_THERMAL) += mtk_ts_ntc.o
 #obj-$(CONFIG_THERMAL) += mtk_ts_charger2.o
 
 
@@ -483,7 +496,6 @@ obj-$(CONFIG_THERMAL) += mtk_ts_quiet.o
 obj-$(CONFIG_THERMAL) += mtk_ts_ntc.o
 obj-$(CONFIG_THERMAL) += mtk_ts_flash.o
 obj-$(CONFIG_THERMAL) += mtk_ts_wifi.o
-
 
 ifneq ($(CONFIG_MTK_COMBO_WIFI),)
     obj-$(CONFIG_THERMAL) += mtk_ts_wmt.o

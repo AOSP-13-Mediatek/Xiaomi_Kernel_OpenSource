@@ -38,7 +38,7 @@
 #define SUPPORT_HPS 0
 
 #define PFX "s5k4h7_aac_camera_sensor"
-#define LOG_INF(format, args...)	pr_debug(PFX "[%s] " format, __func__, ##args)
+#define LOG_INF(format, args...)	pr_err(PFX "[%s] " format, __func__, ##args)
 #define VENDOR_ID 0x10
 
 static DEFINE_SPINLOCK(imgsensor_drv_lock);

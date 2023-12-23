@@ -67,10 +67,6 @@ extern "C" {
 #include "mtk_unified_power_mt6893.h"
 #endif
 
-#if defined(CONFIG_MACH_MT6893)
-#include "mtk_unified_power_mt6893.h"
-#endif
-
 #if defined(CONFIG_MACH_MT6873)
 #include "mtk_unified_power_mt6873.h"
 #endif
@@ -89,6 +85,10 @@ extern "C" {
 
 #if defined(CONFIG_MACH_MT8168)
 #include "mtk_unified_power_mt8168.h"
+#endif
+
+#if defined(CONFIG_MACH_MT6781)
+#include "mtk_unified_power_mt6781.h"
 #endif
 
 #define UPOWER_TAG "[UPOWER]"

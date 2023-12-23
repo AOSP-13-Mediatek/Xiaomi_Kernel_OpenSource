@@ -31,6 +31,8 @@ void (*fpsgo_notify_connect_fp)(int pid,
 void (*fpsgo_notify_bqid_fp)(int pid, unsigned long long bufID,
 		int queue_SF, unsigned long long identifier, int create);
 void (*fpsgo_notify_vsync_fp)(void);
+void (*fpsgo_get_fps_fp)(int *pid, int *fps);
+void (*gbe_get_cmd_fp)(int *cmd, int *value1, int *value2);
 void (*fpsgo_notify_nn_job_begin_fp)(unsigned int tid, unsigned long long mid);
 void (*fpsgo_notify_nn_job_end_fp)(int pid, int tid, unsigned long long mid,
 	int num_step, __s32 *boost, __s32 *device, __u64 *exec_time);
@@ -44,6 +46,11 @@ void (*rsu_getstate_fp)(int *throttled);
 
 void (*rsi_getindex_fp)(__s32 *data, __s32 input_size);
 void (*rsi_switch_collect_fp)(__s32 cmd);
+
+void (*eara_enable_fp)(int enable);
+void (*eara_set_tfps_diff_fp)(int max_cnt, int *pid, unsigned long long *buf_id, int *diff);
+void (*eara_get_tfps_pair_fp)(int max_cnt, int *pid, unsigned long long *buf_id, int *tfps);
+
 
 static unsigned long perfctl_copy_from_user(void *pvTo,
 		const void __user *pvFrom, unsigned long ulBytes)
@@ -63,6 +70,7 @@ static unsigned long perfctl_copy_to_user(void __user *pvTo,
 	return ulBytes;
 }
 
+/*--------------------EARA------------------------*/
 static void perfctl_notify_fpsgo_nn_begin(
 	struct _EARA_NN_PACKAGE *msgKM,
 	struct _EARA_NN_PACKAGE *msgUM)
@@ -156,7 +164,6 @@ out_um_malloc_fail:
 	fpsgo_notify_nn_job_end_fp(msgKM->pid, msgKM->tid, msgKM->mid,
 			msgKM->num_step, NULL, NULL, NULL);
 }
-
 
 /*--------------------DEV OP------------------------*/
 static int eara_show(struct seq_file *m, void *v)
@@ -378,6 +385,7 @@ static long device_ioctl(struct file *filp,
 		unsigned int cmd, unsigned long arg)
 {
 	ssize_t ret = 0;
+	int pwr_cmd = -1, value1 = -1, value2 = -1, pwr_pid = -1, pwr_fps = -1;
 	struct _FPSGO_PACKAGE *msgKM = NULL,
 			*msgUM = (struct _FPSGO_PACKAGE *)arg;
 	struct _FPSGO_PACKAGE smsgKM;
@@ -426,6 +434,30 @@ static long device_ioctl(struct file *filp,
 		if (fpsgo_notify_swap_buffer_fp)
 			fpsgo_notify_swap_buffer_fp(msgKM->tid);
 		break;
+	case FPSGO_GET_FPS:
+		if (fpsgo_get_fps_fp) {
+			fpsgo_get_fps_fp(&pwr_pid, &pwr_fps);
+			msgKM->tid = pwr_pid;
+			msgKM->value1 = pwr_fps;
+		} else
+			ret = -1;
+		perfctl_copy_to_user(msgUM, msgKM,
+				sizeof(struct _FPSGO_PACKAGE));
+		break;
+	case FPSGO_GET_CMD:
+		ret = -1;
+		break;
+	case FPSGO_GBE_GET_CMD:
+		if (gbe_get_cmd_fp) {
+			gbe_get_cmd_fp(&pwr_cmd, &value1, &value2);
+			msgKM->cmd = pwr_cmd;
+			msgKM->value1 = value1;
+			msgKM->value2 = value2;
+		} else
+			ret = -1;
+		perfctl_copy_to_user(msgUM, msgKM,
+				sizeof(struct _FPSGO_PACKAGE));
+		break;
 
 #else
 	case FPSGO_TOUCH:
@@ -439,6 +471,25 @@ static long device_ioctl(struct file *filp,
 	case FPSGO_VSYNC:
 		/* FALLTHROUGH */
 	case FPSGO_BQID:
+		/* FALLTHROUGH */
+	case FPSGO_SWAP_BUFFER:
+		/* FALLTHROUGH */
+	case FPSGO_GET_FPS:
+		ret = -1;
+		pwr_pid = -1;
+		pwr_fps = -1;
+		break;
+	case FPSGO_GET_CMD:
+		ret = -1;
+		pwr_cmd = -1;
+		value1 = -1;
+		value2 = -1;
+		break;
+	case FPSGO_GBE_GET_CMD:
+		ret = -1;
+		pwr_cmd = -1;
+		value1 = -1;
+		value2 = -1;
 		break;
 #endif
 

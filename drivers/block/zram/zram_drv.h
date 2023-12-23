@@ -2,7 +2,6 @@
  * Compressed RAM block device
  *
  * Copyright (C) 2008, 2009, 2010  Nitin Gupta
- * Copyright (C) 2021 XiaoMi, Inc.
  *               2012, 2013 Minchan Kim
  *
  * This code is released using a dual license strategy: BSD/GPL
@@ -114,7 +113,6 @@ struct zram_pages_life {
 	struct rcu_head rcu;
 };
 #endif
-
 struct zram {
 	struct zram_table_entry *table;
 	struct zs_pool *mem_pool;

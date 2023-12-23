@@ -335,9 +335,9 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 	if (!f_render->hwui) {
 		h_info = fpsgo_search_and_add_hwui_info(f_render->pid, 0);
 		if (h_info)
-			f_render->hwui = 1;
+			f_render->hwui = RENDER_INFO_HWUI_TYPE;
 		else
-			f_render->hwui = 2;
+			f_render->hwui = RENDER_INFO_HWUI_NONE;
 	}
 
 	if (!f_render->queue_SF) {
@@ -357,6 +357,7 @@ void fpsgo_ctrl2comp_enqueue_end(int pid,
 			"pid[%d] type[%d] enqueue_e:%llu enqueue_l:%llu",
 			pid, f_render->frame_type,
 			enqueue_end_time, f_render->enqueue_length);
+
 		xgf_ret =
 			fpsgo_comp2xgf_qudeq_notify(pid, f_render->buffer_id,
 					XGF_QUEUE_END, &running_time, &mid,

@@ -2,7 +2,6 @@
  * Compressed RAM block device
  *
  * Copyright (C) 2008, 2009, 2010  Nitin Gupta
- * Copyright (C) 2021 XiaoMi, Inc.
  *               2012, 2013 Minchan Kim
  *
  * This code is released using a dual license strategy: BSD/GPL
@@ -1748,10 +1747,10 @@ static void zram_free_page(struct zram *zram, size_t index)
 			&zram->stats.compr_data_size);
 out:
 	atomic64_dec(&zram->stats.pages_stored);
+	zram_set_handle(zram, index, 0);
 #ifdef CONFIG_MIUI_ZRAM_MEMORY_TRACKING
 	average_size(zram, atomic64_read(&zram->stats.pages_stored));
 #endif
-	zram_set_handle(zram, index, 0);
 	zram_set_obj_size(zram, index, 0);
 	WARN_ON_ONCE(zram->table[index].flags &
 		~(1UL << ZRAM_LOCK | 1UL << ZRAM_UNDER_WB));
@@ -2531,6 +2530,7 @@ static int zram_add(void)
 	strlcpy(zram->compressor, default_compressor, sizeof(zram->compressor));
 
 	zram_debugfs_register(zram);
+
 	if (!zram_devices)
 		zram_devices = zram;
 
@@ -2565,6 +2565,7 @@ static int zram_remove(struct zram *zram)
 	mutex_unlock(&bdev->bd_mutex);
 
 	zram_debugfs_unregister(zram);
+
 	/* Make sure all the pending I/O are finished */
 	fsync_bdev(bdev);
 	zram_reset_device(zram);

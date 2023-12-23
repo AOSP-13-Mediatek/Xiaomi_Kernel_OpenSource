@@ -730,7 +730,7 @@ thermal_cooling_device_available_show(struct device *dev,
 				      struct device_attribute *attr, char *buf)
 {
 	struct thermal_cooling_device *cdev = to_cooling_device(dev);
-	char available_state[THERMAL_AVAILABLE_STATE_LENGTH] = "";
+	char available_state[THERMAL_AVAILABLE_STATE_LENGTH];
 	int ret;
 
 	if (cdev->ops->get_available == NULL)

@@ -22,7 +22,7 @@
 #define CMDQ_NO_TIMEOUT			0xffffffff
 #define CMDQ_TIMEOUT_DEFAULT		1000
 
-#if IS_ENABLED(CONFIG_MACH_MT6768)
+#if IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT8168)
 #define CMDQ_THR_MAX_COUNT		16
 #else
 #define CMDQ_THR_MAX_COUNT		24
@@ -144,6 +144,10 @@ struct cmdq_pkt {
 #endif
 #endif	/* end of CONFIG_MTK_CMDQ_MBOX_EXT */
 	bool			task_alloc;
+#if defined(CONFIG_MTK_MT6382_BDG)
+	void			*bdg_data;
+	bool			reuse;
+#endif
 	bool			task_alive;
 };
 
@@ -160,6 +164,7 @@ struct cmdq_thread {
 	bool			occupied;
 	bool			dirty;
 	u64			timer_mod;
+	atomic_t		user_usage;
 };
 
 extern int mtk_cmdq_log;
@@ -222,6 +227,8 @@ void cmdq_thread_set_spr(struct mbox_chan *chan, u8 id, u32 val);
 void cmdq_init_cmds(void *dev_cmdq);
 void cmdq_mbox_channel_stop(struct mbox_chan *chan);
 void cmdq_dump_core(struct mbox_chan *chan);
+void cmdq_pkt_poll_gpr_check(
+	struct cmdq_pkt *pkt, const u16 gpr_idx, const s32 start);
 void cmdq_thread_dump_spr(struct cmdq_thread *thread);
 void cmdq_thread_dump(struct mbox_chan *chan, struct cmdq_pkt *cl_pkt,
 	u64 **inst_out, dma_addr_t *pc_out);

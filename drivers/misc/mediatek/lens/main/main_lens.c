@@ -92,6 +92,8 @@ static struct stAF_OisPosInfo OisPosInfo;
 static struct stAF_DrvList g_stAF_DrvList[MAX_NUM_OF_LENS] = {
 	{1, AFDRV_DW9718TAF, DW9718TAF_SetI2Cclient, DW9718TAF_Ioctl,
 	 DW9718TAF_Release, DW9718TAF_GetFileName, NULL},
+	{1, AFDRV_GT9772AF, GT9772AF_SetI2Cclient, GT9772AF_Ioctl,
+	 GT9772AF_Release, GT9772AF_GetFileName, NULL},
 	{1, AFDRV_AK7371AF, AK7371AF_SetI2Cclient, AK7371AF_Ioctl,
 	 AK7371AF_Release, AK7371AF_GetFileName, NULL},
 	{1, AFDRV_BU6424AF, BU6424AF_SetI2Cclient, BU6424AF_Ioctl,
@@ -264,7 +266,7 @@ static int af_pinctrl_set(int pin, int state)
 static struct regulator *regVCAMAF;
 static int g_regVCAMAFEn;
 
-static void AFRegulatorCtrl(int Stage)
+void AFRegulatorCtrl(int Stage)
 {
 	LOG_INF("AFIOC_S_SETPOWERCTRL regulator_put %p\n", regVCAMAF);
 
@@ -273,8 +275,13 @@ static void AFRegulatorCtrl(int Stage)
 			struct device_node *node, *kd_node;
 
 			/* check if customer camera node defined */
-			node = of_find_compatible_node(
-				NULL, NULL, "mediatek,CAMERA_MAIN_AF");
+			#if defined(CONFIG_MACH_MT6877)
+				node = of_find_compatible_node(
+					NULL, NULL, "mediatek,CAMERA_MAIN_AF");
+			#else
+				node = of_find_compatible_node(
+					NULL, NULL, "mediatek,camera_af_lens");
+			#endif
 
 			if (node) {
 				kd_node = lens_device->of_node;
@@ -289,22 +296,6 @@ static void AFRegulatorCtrl(int Stage)
 				#elif defined(CONFIG_MACH_MT6771)
 				regVCAMAF =
 					regulator_get(lens_device, "vldo28");
-				#elif defined(CONFIG_MACH_MT6833)
-				if (strncmp(CONFIG_ARCH_MTK_PROJECT,
-					"k6833v1_64_6360_alpha", 20) == 0) {
-					regVCAMAF =
-					regulator_get(lens_device, "vmch");
-				} else {
-					#if defined(CONFIG_REGULATOR_MT6317)
-					regVCAMAF =
-					regulator_get(lens_device, "mt6317-ldo3");
-					LOG_INF("regulator_get(%s)\n", "mt6317-ldo3");
-					#else
-					regVCAMAF =
-					regulator_get(lens_device, "vcamio");
-					LOG_INF("regulator_get(%s)\n", "vcamio");
-					#endif
-				}
 				#elif defined(CONFIG_MACH_MT6853)
 				if (strncmp(CONFIG_ARCH_MTK_PROJECT,
 					"k6853v1_64_6360_alpha", 20) == 0) {
@@ -323,7 +314,7 @@ static void AFRegulatorCtrl(int Stage)
 					regVCAMAF =
 					regulator_get(lens_device, "vcamio");
 				}
-				#elif defined(CONFIG_MACH_MT6877)
+				#elif defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6781)
 				if (strncmp(CONFIG_ARCH_MTK_PROJECT,
 					"k6877v1_64", 10) == 0) {
 					regVCAMAF =
@@ -346,6 +337,10 @@ static void AFRegulatorCtrl(int Stage)
 					regVCAMAF =
 					regulator_get(lens_device, "vcamio");
 				}
+				/*XIAOMI: add for getting vcamaf from fan53870_L7 --start*/
+				regVCAMAF =
+					regulator_get(lens_device, "vcamwaf");
+				/*XIAOMI: add for getting vcamaf from fan53870_L7 --end*/
 				#else
 				regVCAMAF =
 					regulator_get(lens_device, "vcamaf");

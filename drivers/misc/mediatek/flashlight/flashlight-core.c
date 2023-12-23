@@ -2,7 +2,6 @@
  * Flashlight Core
  *
  * Copyright (C) 2015 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * Author: Simon Wang <Simon-TCH.Wang@mediatek.com>
  *
@@ -651,8 +650,9 @@ static int pt_arg_verify(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 static int pt_is_low(int pt_low_vol, int pt_low_bat, int pt_over_cur)
 {
 	int is_low = 0;
-
-/*	if (pt_low_bat != BATTERY_PERCENT_LEVEL_0
+//_XIAOMI_
+/*
+	if (pt_low_bat != BATTERY_PERCENT_LEVEL_0
 			|| pt_low_vol != LOW_BATTERY_LEVEL_0
 			|| pt_over_cur != BATTERY_OC_LEVEL_0) {
 		is_low = 1;
@@ -1547,7 +1547,7 @@ static ssize_t flashlight_sw_disable_show(
 	char status_tmp[FLASHLIGHT_SW_DISABLE_STATUS_TMPBUF_SIZE];
 	int ret;
 
-	pr_debug("Charger status show\n");
+	pr_debug("Sw disable status show\n");
 
 	memset(status, '\0', FLASHLIGHT_SW_DISABLE_STATUS_BUF_SIZE);
 
@@ -1874,10 +1874,10 @@ static int __init flashlight_init(void)
 	}
 
 #ifdef CONFIG_MTK_FLASHLIGHT_PT
-	register_low_battery_notify(
-			&pt_low_vol_callback, LOW_BATTERY_PRIO_FLASHLIGHT);
-	register_battery_percent_notify(
-			&pt_low_bat_callback, BATTERY_PERCENT_PRIO_FLASHLIGHT);
+	//register_low_battery_notify(
+	//		&pt_low_vol_callback, LOW_BATTERY_PRIO_FLASHLIGHT);
+	//register_battery_percent_notify(
+	//		&pt_low_bat_callback, BATTERY_PERCENT_PRIO_FLASHLIGHT);
 	register_battery_oc_notify(
 			&pt_oc_callback, BATTERY_OC_PRIO_FLASHLIGHT);
 #endif

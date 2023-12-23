@@ -3,7 +3,6 @@
  *  linux/fs/proc/base.c
  *
  *  Copyright (C) 1991, 1992 Linus Torvalds
- *  Copyright (C) 2021 XiaoMi, Inc.
  *
  *  proc base directory handling functions
  *
@@ -1740,6 +1739,15 @@ void task_dump_owner(struct task_struct *task, mode_t mode,
 	/* Default to the tasks effective ownership */
 	rcu_read_lock();
 	cred = __task_cred(task);
+
+	/* Workaround invalid cred from corrupted task */
+#if defined(__is_lm_address)
+	if (__is_lm_address((unsigned long)cred) && !virt_addr_valid((void *)cred)) {
+		rcu_read_unlock();
+		return;
+	}
+#endif
+
 	uid = cred->euid;
 	gid = cred->egid;
 	rcu_read_unlock();

@@ -299,7 +299,11 @@ static ssize_t dvfsrc_get_dvfs_time_show(struct device *dev,
 	time_2 = dvfsrc_read(DVFSRC_RECORD_0_1 + RECORD_SHIFT * last);
 	time_2 = time_2 << 32;
 	time_2 = dvfsrc_read(DVFSRC_RECORD_0_0 + RECORD_SHIFT * last) + time_2;
+#if BITS_PER_LONG == 32
+	dvfs_time_us = div_u64((time_1 - time_2), 13);
+#else
 	dvfs_time_us = (time_1 - time_2) / 13;
+#endif
 
 	return sprintf(buf, "dvfs_time = %llu us\n", dvfs_time_us);
 }
@@ -336,7 +340,7 @@ int helio_dvfsrc_add_interface(struct device *dev)
 	pm_qos_add_request(&dvfsrc_memory_bw_req, PM_QOS_APU_MEMORY_BANDWIDTH,
 			PM_QOS_APU_MEMORY_BANDWIDTH_DEFAULT_VALUE);
 	pm_qos_add_request(&dvfsrc_ddr_opp_req, PM_QOS_DDR_OPP,
-			PM_QOS_DDR_OPP_DEFAULT_VALUE);
+			0);
 	pm_qos_add_request(&dvfsrc_vcore_opp_req, PM_QOS_VCORE_OPP,
 			0);
 	pm_qos_add_request(&dvfsrc_scp_vcore_req, PM_QOS_SCP_VCORE_REQUEST,
@@ -360,6 +364,8 @@ int helio_dvfsrc_add_interface(struct device *dev)
 void helio_dvfsrc_qos_init_done(void)
 {
 	pm_qos_update_request(&dvfsrc_vcore_opp_req, PM_QOS_VCORE_OPP_DEFAULT_VALUE);
+	pm_qos_update_request(&dvfsrc_ddr_opp_req, PM_QOS_DDR_OPP_DEFAULT_VALUE);
+
 }
 
 void helio_dvfsrc_remove_interface(struct device *dev)

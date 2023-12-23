@@ -1,6 +1,5 @@
 #
 # Copyright (C) 2018 MediaTek Inc.
-# Copyright (C) 2021 XiaoMi, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -13,6 +12,7 @@
 #
 
 #$(call all-subdir-src-or-makefile)
+export MTK_PLATFORM_NAME := $(CONFIG_MTK_PLATFORM)
 export MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 subdir-ccflags-y += -Werror
 
@@ -82,12 +82,17 @@ obj-$(CONFIG_MTK_AUXADC)	+= auxadc/
 obj-$(CONFIG_MTK_GPT_SCHEME_SUPPORT)	+= partition/
 obj-$(CONFIG_MTK_PWM)	    += pwm/
 obj-$(CONFIG_MTK_IRTX_PWM_SUPPORT)	    += irtx/
+ifeq ($(CONFIG_MTK_SENSORHUB), y)
+obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += scp/
+endif
 ifeq ($(subst ",,$(CONFIG_MTK_SENSOR_ARCHITECTURE)),1.0)
 obj-y += sensors-1.0/
 else
 obj-y += sensor/
 endif
+ifneq ($(CONFIG_MTK_SENSORHUB), y)
 obj-$(CONFIG_MTK_TINYSYS_SCP_SUPPORT) += scp/
+endif
 obj-$(CONFIG_MTK_HIFIXDSP_SUPPORT) += hifi_dsp/
 obj-$(CONFIG_MTK_HIFIXDSP_SUPPORT) += hifidsp_audio_ipi/
 obj-$(CONFIG_MTK_AUDIODSP_SUPPORT) += adsp/
@@ -125,11 +130,15 @@ obj-$(CONFIG_MTK_XO)	+= xo/
 obj-$(CONFIG_MTK_DCXO)	+= dcxo/
 obj-$(CONFIG_MTK_CMDQ) += cmdq/
 obj-$(CONFIG_MTK_CMDQ) += mdp/
+obj-$(CONFIG_MTK_VDEC_FMT) += vdec_fmt/
 obj-$(CONFIG_MTK_SMI_EXT) += smi/
 obj-$(CONFIG_MTK_LCM) += lcm/
 obj-$(CONFIG_MTK_LCM) += ext_disp/
 ifneq ($(CONFIG_CUSTOM_KERNEL_HDMI), "")
 obj-$(CONFIG_MTK_HDMI_SUPPORT) += hdmi/
+endif
+ifeq (,$(filter $(CONFIG_MTK_PLATFORM_NAME), "mt6768" "mt6785"))
+obj-y += spi_slave_drv/
 endif
 obj-$(CONFIG_MTK_FB) += video/
 obj-$(CONFIG_MTK_DYNAMIC_FPS_FRAMEWORK_SUPPORT) += dfrc/
@@ -179,3 +188,20 @@ obj-$(CONFIG_MTK_GATE_IC) += gate_ic/
 obj-$(CONFIG_MTK_OTP) += otp/
 obj-$(CONFIG_MTK_SDA) += sda/
 obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += elliptic/
+subdir-ccflags-y += -D_XIAOMI_
+
+ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES),"mediatek/ares")
+subdir-ccflags-y += -D_XIAOMI_ARES_
+endif
+
+ifeq ($(CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES),"mediatek/chopin")
+subdir-ccflags-y += -D_XIAOMI_CHOPIN_
+endif
+
+ifeq ($(CONFIG_BUILD_XIAOMI_CAMERA_IMAGE_NAMES),"mediatek/agate")
+subdir-ccflags-y += -D_XIAOMI_AGATE_
+endif
+
+ifeq ($(CONFIG_BUILD_XIAOMI_CAMERA_IMAGE_NAMES),"mediatek/pissarro")
+subdir-ccflags-y += -D_XIAOMI_PISSARRO_
+endif

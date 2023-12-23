@@ -3,6 +3,13 @@ this file is only for attribution of pissarro
 */
 #include "mediatek/xiaomi-mt6877-common.dtsi"
 
+
+&odm {
+	thermal_message: thermal-message {
+		board-sensor = "VIRTUAL-SENSOR";
+	};
+};
+
 &i2c0 {
 	clock-frequency = <400000>;
 
@@ -53,10 +60,84 @@ this file is only for attribution of pissarro
 			];
 		};
 	};
-
 };
 
 &pio {
+	ctp_pins_default_gt9896: eintdefault {
+	};
+	ctp_gt9896_ts_int_active: int_active {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+			slew-rate = <0>;
+			bias-disable;
+			/*bias-pull-up = <11>;*/
+		};
+	};
+	//ctp_gt9896_ts_reset_active: reset_active {
+	//	pins_cmd_dat {
+	//		pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
+	//		slew-rate = <1>;
+	//		output-high;
+	//	};
+	//};
+	ctp_gt9896_ts_int_suspend: int_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_gt9896_ts_reset_suspend: reset_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
+			slew-rate = <1>;
+			output-low;
+		};
+	};
+	ctp_gt9896_ts_int_boot: int_boot {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
+			slew-rate = <0>;
+			bias-disable;
+		};
+	};
+};
+
+&pio {
+	// ln8000-master
+	ln8000_master_int_default: ln8000_master_int_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO120__FUNC_GPIO120>;
+			slew-rate = <0>;
+			bias-pull-up = <11>;
+		};
+	};
+
+	ln8000_master_int_suspend: ln8000_master_int_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO120__FUNC_GPIO120>;
+			slew-rate = <0>;
+			bias-pull-up = <11>;
+		};
+	};
+
+	// ln8000-slave
+	ln8000_slave_int_default: ln8000_slave_int_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <0>;
+			bias-pull-up = <11>;
+		};
+	};
+
+	ln8000_slave_int_suspend: ln8000slave_int_suspend {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO119__FUNC_GPIO119>;
+			slew-rate = <0>;
+			bias-pull-up = <11>;
+		};
+	};
+
 	xmusb350_rst_normal: xmusb350_rst_normal {
 		pins_cmd_dat {
 			pinmux = <PINMUX_GPIO158__FUNC_GPIO158>;
@@ -111,43 +192,17 @@ this file is only for attribution of pissarro
 		};
 	};
 
+	i2c11_sda_default: i2c11_sda_default {
+		pins_cmd_dat {
+			pinmux = <PINMUX_GPIO63__FUNC_SDA11>;
+			input-enable;
+		};
+	};
 
-	ctp_pins_default_gt9896: eintdefault {
-	};
-	ctp_gt9896_ts_int_active: int_active {
+	i2c11_sda_gpio: i2c11_sda_gpio {
 		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
-			slew-rate = <0>;
-			bias-disable;
-			/*bias-pull-up = <11>;*/
-		};
-	};
-	//ctp_gt9896_ts_reset_active: reset_active {
-	//	pins_cmd_dat {
-	//		pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
-	//		slew-rate = <1>;
-	//		output-high;
-	//	};
-	//};
-	ctp_gt9896_ts_int_suspend: int_suspend {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
-			slew-rate = <1>;
+			pinmux = <PINMUX_GPIO63__FUNC_GPIO63>;
 			output-low;
-		};
-	};
-	ctp_gt9896_ts_reset_suspend: reset_suspend {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO15__FUNC_GPIO15>;
-			slew-rate = <1>;
-			output-low;
-		};
-	};
-	ctp_gt9896_ts_int_boot: int_boot {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO14__FUNC_GPIO14>;
-			slew-rate = <0>;
-			bias-disable;
 		};
 	};
 };
@@ -158,16 +213,18 @@ this file is only for attribution of pissarro
 	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	pinctrl-3 = <&mtkfb_pins_lcm_err_flag>;
 	status = "okay";
 };
 
 &dispsys_config {
 	pinctrl-names =
 		"lcm_rst_out1_gpio", "lcm_rst_out0_gpio",
-		"mode_te_te";
+		"mode_te_te", "err_flag_init";
 	pinctrl-0 = <&mtkfb_pins_lcm_rst_out1_gpio>;
 	pinctrl-1 = <&mtkfb_pins_lcm_rst_out0_gpio>;
 	pinctrl-2 = <&mtkfb_pins_lcm_dsi_te>;
+	pinctrl-3 = <&mtkfb_pins_lcm_err_flag>;
 	status = "okay";
 };
 
@@ -179,6 +236,7 @@ this file is only for attribution of pissarro
 		compatible = "k16_38_0c_0a_dsc_vdo,lcm";
 		reg = <0>;
 		vddi-enable-gpios = <&pio 108 0>;
+		mi,esd-err-irq-gpio = <&pio 9 0x2002>;
 		reset-gpios = <&pio 40 0>;
 		pinctrl-names = "default";
 		port {
@@ -191,6 +249,7 @@ this file is only for attribution of pissarro
 		compatible = "k16_38_0e_0b_dsc_vdo,lcm";
 		reg = <1>;
 		vddi-enable-gpios = <&pio 108 0>;
+		mi,esd-err-irq-gpio = <&pio 9 0x2002>;
 		reset-gpios = <&pio 40 0>;
 		pinctrl-names = "default";
 		port {
@@ -223,6 +282,49 @@ this file is only for attribution of pissarro
 		bus_ocp = <4500>;
 		bat_ovp = <5000>;
 		bat_ocp = <8000>;
+	};
+
+	ln8000-secondary@51 {
+		compatible = "lionsemi,ln8000-secondary";
+		reg = <0x51>;
+		pinctrl-names = "ln8000_slave_irq";
+		pinctrl-0 = <&ln8000_slave_int_default &ln8000_slave_int_suspend>;
+
+		charger_name = "quaternary_chg";
+		/* bank <bit-idx> <flags: active-low> */
+		//irq-gpios = <&tlmm 55 0x2002>;
+
+		//interrupt-parent = <&tlmm>;
+		//interrupts = <55 0x2002>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&ln8000_int_default &ln8000_int_suspend>;
+		//ln8000_charger,irq_index = <296>;
+		/* device configuration */
+		ln8000_charger,bat-ovp-threshold = <4660>;
+		ln8000_charger,bat-ovp-alarm-threshold = <4625>;
+		ln8000_charger,bus-ovp-threshold = <13000>;
+		ln8000_charger,bus-ovp-alarm-threshold = <11000>;
+		ln8000_charger,bus-ocp-threshold = <3750>;
+		ln8000_charger,bus-ocp-alarm-threshold = <3500>;
+		ln8000_charger,ntc-alarm-cfg  = <226>;
+		/* protection enable/disable flags
+		 *   vbat-ovp-disable
+		 *   vbat-reg-disable
+		 *   iin-ocp-disable
+		 *   iin-reg-disable
+		 *   tbus-mon-disable
+		 *   tbat-mon-disable
+		 *   tdie-prot-disable
+		 *   tdie-reg-disable
+		 *   revcurr-prot-disable
+		 */
+		ln8000_charger,tdie-prot-disable;
+		ln8000_charger,tbus-mon-disable;
+		ln8000_charger,tbat-mon-disable;
+		ln8000_charger,iin-ocp-disable;
+		ln8000_charger,iin-reg-disable;
+		ln8000_charger,tdie-reg-disable;
+		ln8000_charger,vbat-reg-disable;
 	};
 };
 
@@ -276,7 +378,7 @@ this file is only for attribution of pissarro
 		mp2762_irq_gpio = <&pio 6 0x0>;
 		iprechg = <240>;
 		vprechg = <6000>;
-		iterm = <200>;
+		iterm = <100>;
 		iterm_ffc = <700>;
 		fv = <8900>;
 		fv_ffc = <8950>;
@@ -301,6 +403,10 @@ this file is only for attribution of pissarro
 		compatible = "bq25980_master";
 		reg = <0x65>;
 		bq25980_irq_gpio = <&pio 120 0x0>;
+		pinctrl-names = "i2c11_sda_default", "i2c11_sda_gpio";
+		pinctrl-0 = <&i2c11_sda_default>;
+		pinctrl-1 = <&i2c11_sda_gpio>;
+		status = "okay";
 	};
 
 	bq25980_slave@67 {
@@ -325,6 +431,49 @@ this file is only for attribution of pissarro
 		bat_ovp = <5000>;
 		bat_ocp = <8000>;
 	};
+
+	ln8000@51 {
+		compatible = "lionsemi,ln8000";
+		reg = <0x51>;
+		/* bank <bit-idx> <flags: active-low> */
+		//irq-gpios = <&tlmm 55 0x2002>;
+		pinctrl-names = "ln8000_master_irq";
+		pinctrl-0 = <&ln8000_master_int_default &ln8000_master_int_suspend>;
+
+		charger_name = "tertiary_chg";
+
+		//interrupt-parent = <&tlmm>;
+		//interrupts = <55 0x2002>;
+		//pinctrl-names = "default";
+		//pinctrl-0 = <&ln8000_int_default ln8000_int_suspend>;
+		ln8000_charger,irq_index = <296>;
+		/* device configuration */
+		ln8000_charger,bat-ovp-threshold = <4660>;
+		ln8000_charger,bat-ovp-alarm-threshold = <4625>;
+		ln8000_charger,bus-ovp-threshold = <13000>;
+		ln8000_charger,bus-ovp-alarm-threshold = <11000>;
+		ln8000_charger,bus-ocp-threshold = <3750>;
+		ln8000_charger,bus-ocp-alarm-threshold = <3500>;
+		ln8000_charger,ntc-alarm-cfg  = <226>;
+		/* protection enable/disable flags
+		 *   vbat-ovp-disable
+		 *   vbat-reg-disable
+		 *   iin-ocp-disable
+		 *   iin-reg-disable
+		 *   tbus-mon-disable
+		 *   tbat-mon-disable
+		 *   tdie-prot-disable
+		 *   tdie-reg-disable
+		 *   revcurr-prot-disable
+		 */
+		ln8000_charger,tdie-prot-disable;
+		ln8000_charger,tbus-mon-disable;
+		ln8000_charger,tbat-mon-disable;
+		ln8000_charger,iin-ocp-disable;
+		ln8000_charger,iin-reg-disable;
+		ln8000_charger,tdie-reg-disable;
+		ln8000_charger,vbat-reg-disable;
+	};
 };
 
 &pissarro_charger {
@@ -340,7 +489,7 @@ this file is only for attribution of pissarro
 	ffc_low_tbat = <150>;
 	ffc_high_tbat = <480>;
 	ffc_medium_tbat = <350>;
-	ffc_high_soc = <97>;
+	ffc_high_soc = <92>;
 
 	step_fallback_hyst = <25>;
 	step_forward_hyst = <5>;
@@ -365,8 +514,8 @@ this file is only for attribution of pissarro
 			3596	4195	12300
 			4196	4295	9130
 			4296	4395	7600
-			4396	4472	6050
-			4473	4478	1100>;
+			4396	4465	6050
+			4466	4478	1100>;
 
 	thermal_limit_dcp = <1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1700 1600 1400 1200>;
 	thermal_limit_qc2 = <2000 2000 2000 2000 2000 2000 1400 1300 1200 1100 1000 900 800 700 600 500>;
@@ -381,14 +530,14 @@ this file is only for attribution of pissarro
 
 	fv = <8900>;
 	fv_ffc = <8950>;
-	iterm = <200>;
+	iterm = <100>;
 	iterm_ffc = <700>;
 	max_fcc = <11000>;
 	max_ibus = <6200>;
 	ffc_low_tbat = <150>;
 	ffc_high_tbat = <480>;
 	ffc_medium_tbat = <350>;
-	ffc_high_soc = <97>;
+	ffc_high_soc = <95>;
 
 	step_fallback_hyst = <25>;
 	step_forward_hyst = <5>;
@@ -413,22 +562,22 @@ this file is only for attribution of pissarro
 				8296	8355	10000
 				8356	8695	8000
 				8696	8895	6540
-				8896	8951	4360
-				8952	8956	1100>;
+				8896	8947	4360
+				8948	8956	1100>;
 
 	step_chg_cfg_normal_cycle = <6000	8255	11000
 					8256	8295	10000
 					8296	8695	8000
 					8696	8895	6540
-					8896	8951	4360
-					8952	8956	1100>;
+					8896	8947	4360
+					8948	8956	1100>;
 
 	step_chg_cfg_high_cycle = <6000	8195	11000
 				8196	8235	10000
 				8236	8695	8000
 				8696	8895	6540
-				8896	8951	4360
-				8952	8956	1100>;
+				8896	8947	4360
+				8948	8956	1100>;
 
 	thermal_limit_dcp = <1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1800 1700 1600 1400 1200>;
 	thermal_limit_qc2 = <2000 2000 2000 2000 2000 2000 1400 1300 1200 1100 1000 900 800 700 600 500>;
@@ -438,8 +587,8 @@ this file is only for attribution of pissarro
 	thermal_limit_pd = <11000 10000 9500 9000 8500 8000 7500 7000 6500 6000 5000 4000 3000 2000 1000 500>;
 };
 
-&qc_cp_manager {
-	compatible = "qc_cp_manager";
+&pissarro_qc_cp_manager {
+	compatible = "pissarro_qc_cp_manager";
 	max_vbus = <12000>;
 	max_ibus_qc3_18w = <2200>;
 	max_ibat_qc3_18w = <3500>;
@@ -449,18 +598,18 @@ this file is only for attribution of pissarro
 	max_ibat_qc35 = <4400>;
 	tune_step_ibat_qc3_27 = <1400>;
 	tune_step_ibat_qc3_18 = <1900>;
-	tune_step_ibat_qc35 = <100>;
+	tune_step_ibat_qc35 = <200>;
 	tune_step_ibus_qc3_27 = <700>;
 	tune_step_ibus_qc3_18 = <950>;
 	tune_step_ibus_qc35 = <50>;
-	high_soc = <97>;
+	high_soc = <92>;
 	cv_vbat = <4410>;
 	cv_vbat_ffc = <4450>;
 	cv_ibat = <1800>;
 };
 
-&pd_cp_manager_a {
-	compatible = "pd_cp_manager_a";
+&pissarro_pd_cp_manager {
+	compatible = "pissarro_pd_cp_manager";
 	fv = <4450>;
 	fv_ffc = <4480>;
 	max_fcc = <12400>;
@@ -471,20 +620,21 @@ this file is only for attribution of pissarro
 	low_tbat = <100>;
 	high_tbat = <480>;
 	high_vbat = <4300>;
-	high_soc = <97>;
+	high_soc = <92>;
 	cv_vbat = <4430>;
 	cv_vbat_ffc = <4460>;
-	cv_ibat = <1150>;
+	cv_ibat = <1350>;
 	vbus_low_gap = <400>;
 	vbus_high_gap = <600>;
 	min_pdo_vbus = <8000>;
 	max_pdo_vbus = <11000>;
 	max_bbc_vbus = <12000>;
 	min_bbc_vbus = <9000>;
+	pd_power_max = <67>; /*charge power max : 67W */
 };
 
-&pd_cp_manager_b {
-	compatible = "pd_cp_manager_b";
+&pissarropro_pd_cp_manager {
+	compatible = "pissarropro_pd_cp_manager";
 	fv = <8900>;
 	fv_ffc = <8960>;
 	max_fcc = <11000>;
@@ -495,16 +645,17 @@ this file is only for attribution of pissarro
 	low_tbat = <100>;
 	high_tbat = <480>;
 	high_vbat = <8600>;
-	high_soc = <97>;
+	high_soc = <95>;
 	cv_vbat = <8880>;
 	cv_vbat_ffc = <8940>;
-	cv_ibat = <1150>;
+	cv_ibat = <1200>;
 	vbus_low_gap = <650>;
 	vbus_high_gap = <750>;
 	min_pdo_vbus = <18000>;
 	max_pdo_vbus = <21000>;
 	max_bbc_vbus = <15000>;
 	min_bbc_vbus = <10000>;
+	pd_power_max = <120>; /*charge power max : 120W */
 };
 
 &usb0phy {
@@ -515,19 +666,6 @@ this file is only for attribution of pissarro
 		u2_enhance  = <3>;
 		u2_intr_cal = <18>;
 		u2_discth  = <15>;
-	};
-};
-
-&odm {
-	simtray {
-		compatible = "xiaomi,simtray-status";
-		status-gpio =	<&pio 176 0>;
-	};
-};
-
-&odm {
-	thermal_message: thermal-message {
-		board-sensor = "VIRTUAL-SENSOR";
 	};
 };
 /* AW8697 Haptic start */
@@ -722,32 +860,6 @@ this file is only for attribution of pissarro
 };
 /* AW8697 Haptic end */
 
-/* IRTX GPIO Start */
-&irtx_pwm {
-	pinctrl-names = "irtx_gpio_led_default", "irtx_gpio_led_set";
-	pinctrl-0 = <&irtx_gpio_led_default>;
-	pinctrl-1 = <&irtx_gpio_led_set>;
-	pwm_ch = <0>;
-	status = "okay";
+&tboard_thermistor6 {
+	thermal_rename = "charger_therm";
 };
-&pio {
-	/* IRTX GPIO Settings -Start */
-	/* default: GPIO0, output, high */
-	irtx_gpio_led_default:irtx_gpio_led_def@gpio107 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO107__FUNC_GPIO107>;
-			slew-rate = <1>;
-			bias-disable;
-			output-low;
-			input-schmitt-enable = <0>;
-		};
-	};
-
-	irtx_gpio_led_set:irtx_gpio_led_set@gpio107 {
-		pins_cmd_dat {
-			pinmux = <PINMUX_GPIO107__FUNC_PWM_0>;
-			slew-rate = <1>;
-			output-high;
-		};
-	};
-}; /* IRTX GPIO Settings -End */

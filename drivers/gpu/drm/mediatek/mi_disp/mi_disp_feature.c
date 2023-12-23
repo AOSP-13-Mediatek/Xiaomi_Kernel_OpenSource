@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #define pr_fmt(fmt) "mi_disp_log:[%s:%d] " fmt, __func__, __LINE__
@@ -38,6 +37,9 @@
 #include "mi_disp_sysfs.h"
 
 struct disp_feature *g_disp_feature = NULL;
+
+extern int mi_cooler_brightness_clone_init(struct mtk_dsi *display);
+extern void mi_cooler_brightness_clone_exit(void);
 
 struct disp_feature *mi_get_disp_feature(void)
 {
@@ -161,6 +163,14 @@ int mi_disp_feature_attach_display(void *display, int disp_id, int intf_type)
 			goto err_procfs;
 		}
 
+		mi_disp_cfg_init(display);
+
+		ret = mi_cooler_brightness_clone_init(display);
+		if (ret) {
+			DISP_ERROR("failed to init cooler brightness clone\n");
+			goto err_procfs;
+		}
+
 		DISP_INFO("attach %s display(%s intf) success\n", get_disp_id_name(disp_id),
 				get_disp_intf_type_name(intf_type));
 
@@ -248,7 +258,7 @@ void mi_disp_feature_event_notify(struct disp_event *event, u8 *payload)
 	}
 
 	spin_lock_irqsave(&df->client_spinlock, flags);
-
+	
 	list_for_each_entry(client, &df->client_list, link) {
 		if(!test_bit(event->type, client->disp[event->disp_id].evbit))
 			continue;
@@ -268,12 +278,12 @@ void mi_disp_feature_event_notify(struct disp_event *event, u8 *payload)
 		memcpy(notify->event.data, payload, event->length);
 		client->event_space -= notify->event.base.length;
 		list_add_tail(&notify->link, &client->event_list);
-
+	
 		DISP_DEBUG("%s display event type: %s\n", get_disp_id_name(event->disp_id),
 			get_disp_event_type_name(event->type));
 		DISP_DEBUG("%s display event length: %d\n", get_disp_id_name(event->disp_id),
 			notify->event.base.length);
-
+	
 		wake_up_interruptible(&client->event_wait);
 	}
 
@@ -306,6 +316,222 @@ void mi_disp_feature_sysfs_notify(int sysfs_node)
 		}
 	}
 }
+
+static ssize_t disp_param_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	u32 param;
+	int ret;
+
+	sscanf(buf, "0x%x", &param);
+
+	ret = dsi_display_set_disp_param(&display->conn, param);
+
+	return ret ? ret : count;
+}
+
+static ssize_t disp_param_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+
+	return dsi_display_get_disp_param(&display->conn, buf);
+}
+
+static ssize_t mipi_reg_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int ret;
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+
+	ret = dsi_display_write_mipi_reg(&display->conn, (char *)buf, count);
+
+	return ret ? ret : count;
+}
+
+static ssize_t mipi_reg_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+
+	return dsi_display_read_mipi_reg(&display->conn, buf);
+}
+
+static ssize_t oled_pmic_id_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	return 0;
+	//return mi_dsi_display_read_oled_pmic_id(display, buf);
+}
+
+static ssize_t panel_info_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	return mi_dsi_display_read_panel_info(display, buf);
+}
+
+static ssize_t wp_info_show(struct device *device,
+			struct device_attribute *attr, char *buf)
+{
+	return 0;
+}
+
+static ssize_t dynamic_fps_show(struct device *device,
+			struct device_attribute *attr, char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int fps = 0;
+	mi_dsi_panel_get_fps(display, &fps);
+	return snprintf(buf, PAGE_SIZE, "%d\n", fps);
+}
+
+static ssize_t doze_brightness_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int doze_brightness;
+	int ret;
+
+	ret = kstrtoint(buf, 0, &doze_brightness);
+	if (ret)
+		return ret;
+
+	ret = mi_dsi_display_set_doze_brightness(display, doze_brightness);
+
+	return ret ? ret : count;
+}
+
+static ssize_t doze_brightness_show(struct device *device,
+			struct device_attribute *attr, char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int doze_brightness = 0;
+	return mi_dsi_display_get_doze_brightness(display, &doze_brightness);
+	snprintf(buf, PAGE_SIZE, "%d\n", doze_brightness);
+}
+
+static ssize_t gamma_test_show(struct device *device,
+			struct device_attribute *attr, char *buf)
+{
+
+	int ret = 0;
+
+	//ret = mi_dsi_display_read_gamma_param(display);
+	if (ret) {
+		pr_err("Failed to update panel id and gamma para!\n");
+	}
+
+	//ret = mi_dsi_display_print_gamma_param(display, buf);
+	return ret;
+}
+
+static ssize_t brightness_clone_store(struct device *device,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int brightness;
+	int ret;
+	ret = kstrtoint(buf, 0, &brightness);
+	if (ret)
+		return ret;
+
+	mi_dsi_display_set_brightness_clone(display, brightness);
+	display->conn.brightness_clone = brightness;
+	mi_disp_feature_sysfs_notify(MI_SYSFS_BRIGHTNESS_CLONE);
+	return ret ? ret : count;
+}
+
+static ssize_t brightness_clone_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int brightness_clone = 0;
+
+	mi_dsi_display_get_brightness_clone(display, &brightness_clone);
+	return snprintf(buf, PAGE_SIZE, "%d\n", brightness_clone);
+}
+
+static ssize_t dc_status_store(struct device *device,
+			struct device_attribute *attr,
+			const char *buf, size_t count)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	int dc_status;
+	int ret;
+	ret = kstrtoint(buf, 0, &dc_status);
+	if (ret)
+		return ret;
+
+	ret = display->conn.dc_status = dc_status;
+	mi_disp_feature_sysfs_notify(MI_SYSFS_DC);
+	return ret ? ret : count;
+}
+
+static ssize_t dc_status_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_feature *dev = to_disp_feature(device);
+	struct mtk_dsi *display = dev->d_display[DSI_PRIMARY].display;
+	return snprintf(buf, PAGE_SIZE, "%d\n", display->conn.dc_status);
+}
+static DEVICE_ATTR_RW(disp_param);
+static DEVICE_ATTR_RW(mipi_reg);
+static DEVICE_ATTR_RO(oled_pmic_id);
+static DEVICE_ATTR_RO(panel_info);
+static DEVICE_ATTR_RO(wp_info);
+static DEVICE_ATTR_RO(dynamic_fps);
+static DEVICE_ATTR_RW(doze_brightness);
+static DEVICE_ATTR_RO(gamma_test);
+static DEVICE_ATTR_RW(brightness_clone);
+static DEVICE_ATTR_RW(dc_status);
+
+static struct attribute *disp_feature_attrs[] = {
+	&dev_attr_disp_param.attr,
+	&dev_attr_mipi_reg.attr,
+	&dev_attr_oled_pmic_id.attr,
+	&dev_attr_panel_info.attr,
+	&dev_attr_wp_info.attr,
+	&dev_attr_dynamic_fps.attr,
+	&dev_attr_doze_brightness.attr,
+	&dev_attr_gamma_test.attr,
+	&dev_attr_brightness_clone.attr,
+	&dev_attr_dc_status.attr,
+	NULL
+};
+
+static const struct attribute_group disp_feature_group = {
+	.attrs = disp_feature_attrs,
+};
+
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+static const struct attribute_group *disp_feature_groups[] = {
+	&disp_feature_group,
+	NULL
+};
+#endif
 
 static const struct file_operations disp_feature_fops = {
 	.owner           = THIS_MODULE,
@@ -356,7 +582,14 @@ int mi_disp_feature_init(void)
 
 	df->dev_id = df->cdev->dev;
 	df->class = disp_core->class;
+
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+	df->pdev = device_create_with_groups(df->class, NULL,
+			df->dev_id, df, disp_feature_groups,
+			DISP_FEATURE_DEVICE_NAME);
+#else
 	df->pdev = device_create(df->class, NULL, df->dev_id, df, DISP_FEATURE_DEVICE_NAME);
+#endif
 	if (IS_ERR(df->pdev)) {
 		DISP_ERROR("create device failed for %s\n", DISP_FEATURE_DEVICE_NAME);
 		ret = -ENODEV;

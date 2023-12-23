@@ -3,7 +3,6 @@
   * Core layer of touchdriver architecture.
   *
   * Copyright (C) 2019 - 2020 Goodix, Inc.
-  * Copyright (C) 2021 XiaoMi, Inc.
   *
   * This program is free software; you can redistribute it and/or modify
   * it under the terms of the GNU General Public License as published by
@@ -991,7 +990,10 @@ static void goodix_ts_sysfs_exit(struct goodix_ts_core *core_data)
 
 static void goodix_ts_proc_exit(struct goodix_ts_core *core_data)
 {
+	proc_remove(core_data->tp_lockdown_info_proc);
+	proc_remove(core_data->tp_fw_version_proc);
 	proc_remove(core_data->tp_selftest_proc);
+	proc_remove(core_data->tp_data_dump_proc);
 }
 static void goodix_ts_wq_exit(struct goodix_ts_core *core_data)
 {
@@ -1111,6 +1113,9 @@ static void goodix_ts_report_finger(struct input_dev *dev,
 				ts_info("finger report leave:%d", i);
 				pre_coords[i].status = 0;
 			}
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+			last_touch_events_collect(i, 0);
+#endif
 			continue;
 		}
 
@@ -1136,6 +1141,9 @@ static void goodix_ts_report_finger(struct input_dev *dev,
 		if (!__test_and_set_bit(i, &core_data->touch_id)) {
 				ts_info("finger report press:%d", i);
 		}
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+		last_touch_events_collect(i, 1);
+#endif
 	}
 
 	/*first touch down and last touch up condition*/
@@ -1817,6 +1825,9 @@ static void goodix_ts_release_connects(struct goodix_ts_core *core_data)
 		for (i = 0; i < mt->num_slots; i++) {
 			input_mt_slot(input_dev, i);
 			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
+#ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
+		last_touch_events_collect(i, 0);
+#endif
 		}
 		input_report_key(input_dev, BTN_TOUCH, 0);
 		input_mt_sync_frame(input_dev);
@@ -2293,6 +2304,153 @@ err_finger:
 	return r;
 }
 
+static void tpdbg_suspend(struct goodix_ts_core *core_data, bool enable)
+{
+	if (enable)
+		queue_work(core_data->event_wq, &core_data->suspend_work);
+	else
+		queue_work(core_data->event_wq, &core_data->resume_work);
+}
+
+static int tpdbg_open(struct inode *inode, struct file *file)
+{
+	file->private_data = inode->i_private;
+
+	return 0;
+}
+
+static ssize_t tpdbg_read(struct file *file, char __user *buf, size_t size,
+				loff_t *ppos)
+{
+	const char *str = "cmd support as below:\n \
+				\necho \"irq-disable\" or \"irq-enable\" to ctrl irq\n \
+				\necho \"tp-suspend-en\" or \"tp-suspend-off\" to ctrl panel in or off suspend status\n \
+				\necho \"tp-sd-en\" or \"tp-sd-off\" to ctrl panel in or off sleep status\n";
+
+	loff_t pos = *ppos;
+	int len = strlen(str);
+
+	if (pos < 0)
+		return -EINVAL;
+	if (pos >= len)
+		return 0;
+
+	if (copy_to_user(buf, str, len))
+		return -EFAULT;
+
+	*ppos = pos + len;
+
+	return len;
+}
+
+static ssize_t tpdbg_write(struct file *file, const char __user *buf,
+					size_t size, loff_t *ppos)
+{
+	struct goodix_ts_core *core_data = file->private_data;
+	char *cmd = kzalloc(size + 1, GFP_KERNEL);
+	int ret = size;
+
+	if (!cmd)
+		return -ENOMEM;
+
+	if (copy_from_user(cmd, buf, size)) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	cmd[size] = '\0';
+
+	if (!strncmp(cmd, "irq-disable", 11))
+		goodix_ts_irq_enable(core_data, false);
+	else if (!strncmp(cmd, "irq-enable", 10))
+		goodix_ts_irq_enable(core_data, true);
+	else if (!strncmp(cmd, "tp-sd-en", 8))
+		tpdbg_suspend(core_data, true);
+	else if (!strncmp(cmd, "tp-sd-off", 9))
+		tpdbg_suspend(core_data, false);
+	else if (!strncmp(cmd, "tp-suspend-en", 13))
+		tpdbg_suspend(core_data, true);
+	else if (!strncmp(cmd, "tp-suspend-off", 14))
+		tpdbg_suspend(core_data, false);
+out:
+	kfree(cmd);
+
+	return ret;
+}
+
+static int tpdbg_release(struct inode *inode, struct file *file)
+{
+	file->private_data = NULL;
+
+	return 0;
+}
+
+static const struct file_operations tpdbg_operations = {
+	.owner = THIS_MODULE,
+	.open = tpdbg_open,
+	.read = tpdbg_read,
+	.write = tpdbg_write,
+	.release = tpdbg_release,
+};
+
+static ssize_t goodix_lockdown_info_read(struct file *file, char __user *buf,
+					 size_t count, loff_t *pos)
+{
+	int cnt = 0, ret = 0;
+#define TP_INFO_MAX_LENGTH 50
+	char tmp[TP_INFO_MAX_LENGTH];
+
+	if (*pos != 0 || !goodix_core_data)
+		return 0;
+
+	cnt = snprintf(tmp, TP_INFO_MAX_LENGTH,
+			"0x%02x,0x%02x,0x%02x,0x%02x,0x%02x,0x%02x,0x%02x,0x%02x\n",
+			goodix_core_data->lockdown_info[0], goodix_core_data->lockdown_info[1],
+			goodix_core_data->lockdown_info[2], goodix_core_data->lockdown_info[3],
+			goodix_core_data->lockdown_info[4], goodix_core_data->lockdown_info[5],
+			goodix_core_data->lockdown_info[6], goodix_core_data->lockdown_info[7]);
+
+	ret = copy_to_user(buf, tmp, cnt);
+	*pos += cnt;
+	if (ret != 0)
+		return 0;
+	else
+		return cnt;
+}
+static const struct file_operations goodix_lockdown_info_ops = {
+	.read = goodix_lockdown_info_read,
+};
+static ssize_t goodix_fw_version_info_read(struct file *file, char __user *buf,
+					 size_t count, loff_t *pos)
+{
+	struct goodix_ts_version fw_ver;
+	char k_buf[100] = {0};
+	int cnt = 0;
+	char str[5];
+	int r = 0;
+
+	if (*pos != 0 || !goodix_core_data)
+		return 0;
+	r = goodix_core_data->ts_dev->hw_ops->read_version(goodix_core_data->ts_dev, &fw_ver);
+	if (r)
+		return 0;
+	memcpy(str, fw_ver.pid, 4);
+	str[4] = '\0';
+	cnt = snprintf(k_buf, 100,
+			"PID:%s VID:%02x %02x %02x %02x SENSOR_ID:%d\n",
+			str, fw_ver.vid[0], fw_ver.vid[1], fw_ver.vid[2],
+			fw_ver.vid[3], fw_ver.sensor_id);
+	cnt = cnt > count ? count : cnt;
+	r = copy_to_user(buf, k_buf, cnt);
+	*pos += cnt;
+	if (r != 0)
+		return 0;
+	else
+		return cnt;
+}
+static const struct file_operations goodix_fw_version_info_ops = {
+	.read = goodix_fw_version_info_read,
+};
 static int gtp_i2c_test(void)
 {
 	int ret = 0;
@@ -2407,6 +2565,52 @@ static const struct file_operations gtp_selftest_ops = {
 	.write = goodix_selftest_write,
 };
 
+
+static ssize_t goodix_data_dump_read(struct file *file, char __user *buf,
+				size_t count, loff_t *pos)
+{
+	char *v_buf = NULL;
+	int ret = 0;
+	int cnt = 0;
+
+	if (*pos != 0 || !goodix_core_data)
+		return 0;
+	v_buf = vmalloc(PAGE_SIZE * sizeof(short));
+	if (v_buf == NULL) {
+		ts_err("get memory to save raw data failed!");
+		return 0;
+	}
+	memset(v_buf, 0, PAGE_SIZE * sizeof(short));
+
+	ret = goodix_tools_register();
+	if (ret) {
+		ts_err("tp_rawdata prepare goodix_tools_register failed");
+		cnt = snprintf(v_buf, 6, "-EIO\t\n");
+		goto out;
+	}
+	ts_info("start get rawdata!");
+	gtx8_dump_data(&goodix_core_data->pdev->dev, v_buf, &cnt);
+	goodix_tools_unregister();
+
+out:
+	ret = copy_to_user(buf, v_buf, cnt);
+	*pos += cnt;
+	if (v_buf) {
+		vfree(v_buf);
+		v_buf = NULL;
+	}
+	ts_info("get rawdata test finish!");
+	if (ret != 0)
+		return 0;
+	else
+		return cnt;
+
+	return ret;
+}
+
+static const struct file_operations gtp_data_dump_ops = {
+	.read = goodix_data_dump_read,
+};
 
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
 static struct xiaomi_touch_interface xiaomi_touch_interfaces;
@@ -2979,10 +3183,19 @@ static int goodix_ts_probe(struct platform_device *pdev)
 	/* generic notifier callback */
 	core_data->ts_notifier.notifier_call = goodix_generic_noti_callback;
 	goodix_ts_register_notifier(&core_data->ts_notifier);
-
+	core_data->tp_lockdown_info_proc =
+		proc_create("tp_lockdown_info", 0664, NULL, &goodix_lockdown_info_ops);
+	core_data->tp_fw_version_proc =
+		proc_create("tp_fw_version", 0444, NULL, &goodix_fw_version_info_ops);
 	core_data->tp_selftest_proc =
 		proc_create("tp_selftest", 0644, NULL, &gtp_selftest_ops);
-
+	core_data->tp_data_dump_proc =
+		proc_create("tp_data_dump", 0644, NULL, &gtp_data_dump_ops);
+	core_data->debugfs = debugfs_create_dir("tp_debug", NULL);
+	if (core_data->debugfs) {
+		debugfs_create_file("switch_state", 0660, core_data->debugfs, core_data,
+					&tpdbg_operations);
+	}
 #ifdef CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE
 	core_data->gtp_tp_class = get_xiaomi_touch_class();
 	if (!core_data->gtp_tp_class) {

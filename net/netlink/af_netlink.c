@@ -1334,8 +1334,7 @@ int netlink_has_listeners(struct sock *sk, unsigned int group)
 	int res = 0;
 	struct listeners *listeners;
 
-	if (!netlink_is_kernel(sk))
-		return 0;
+	BUG_ON(!netlink_is_kernel(sk));
 
 	rcu_read_lock();
 	listeners = rcu_dereference(nl_table[sk->sk_protocol].listeners);

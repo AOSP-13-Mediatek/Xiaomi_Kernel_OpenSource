@@ -14,6 +14,8 @@ ifeq (y, $(filter y, $(CONFIG_MACH_MT6893)))
 MTK_PLATFORM := mt6893
 else ifeq (y, $(filter y, $(CONFIG_MACH_MT6877)))
 MTK_PLATFORM := mt6877
+else ifeq (y, $(filter y, $(CONFIG_MACH_MT6781)))
+MTK_PLATFORM := mt6781
 else
 MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))
 endif
@@ -27,7 +29,6 @@ endif
 
 obj-$(CONFIG_SCSI_UFS_QCOM) += ufs-qcom.o
 obj-$(CONFIG_SCSI_UFSHCD) += ufshcd-core.o
-obj-y += ufsfeatures/
 ufshcd-core-y := ufshcd.o
 ufshcd-core-$(CONFIG_SCSI_UFS_CRYPTO) += ufshcd-crypto.o
 obj-$(CONFIG_UFSFEATURE) += ufsfeature.o mi_ufs_common_ops.o
@@ -43,3 +44,4 @@ obj-$(CONFIG_MTK_UFS_SUPPORT) += ufs-mtk.o
 obj-$(CONFIG_MTK_UFS_SUPPORT) += mediatek/$(MTK_PLATFORM)/ufs-mtk-platform.o
 obj-$(CONFIG_MTK_UFS_BLOCK_IO_LOG) += ufs-mtk-block.o
 obj-$(CONFIG_MTK_UFS_SUPPORT) += ufs-mtk-dbg.o
+

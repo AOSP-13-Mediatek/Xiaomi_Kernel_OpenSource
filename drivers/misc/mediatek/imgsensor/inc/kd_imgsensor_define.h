@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2015 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -145,6 +144,9 @@ enum ACDK_CAMERA_OPERATION_MODE_ENUM {
 #define SENSOR_NO_SYNC_MODE 0
 #define SENSOR_MASTER_SYNC_MODE 1
 #define SENSOR_SLAVE_SYNC_MODE 2
+
+/* Flag to describe GET_FRAME_SYNC_PIXEL_LINE_NUM_BY_SCENARIO */
+#define SENSOR_GET_LINELENGTH_FOR_READOUT (0x1 << 0)
 
 /* Define for flicker range table */
 #define GEN_FLICKER_TABLE(var) \
@@ -937,8 +939,8 @@ enum VC_FEATURE {
 	VC_PDAF_STATS_SE,
 	VC_PDAF_STATS_PIX_1,
 	VC_PDAF_STATS_PIX_2,
-	VC_PDAF_STATS_NE_PIX_1,
-	VC_PDAF_STATS_NE_PIX_2,
+	VC_PDAF_STATS_NE_PIX_1 = VC_PDAF_STATS_PIX_1,
+	VC_PDAF_STATS_NE_PIX_2 = VC_PDAF_STATS_PIX_2,
 	VC_PDAF_STATS_ME_PIX_1,
 	VC_PDAF_STATS_ME_PIX_2,
 	VC_PDAF_STATS_SE_PIX_1,
@@ -973,7 +975,9 @@ struct SINGLE_VC_INFO2 {
 	MUINT16 VC_SIZEV;
 	MUINT16 VC_SIZEH_BYTE;
 };
-#define MAX_VC_INFO_CNT 9
+
+#define MAX_VC_INFO_CNT			9
+
 struct SENSOR_VC_INFO2_STRUCT {
 	MUINT16 VC_Num;
 	MUINT16 VC_PixelNum;
@@ -1017,7 +1021,7 @@ struct SET_PD_BLOCK_INFO_T {
 	MUINT32 i4BlockNumY;
 	/* 1: 1st line is long exposure, 0: 1st line is short exposure*/
 	MUINT32 i4LeFirst;
-	MUINT32 i4Crop[10][2]; /* [scenario][crop] -> (xcrop, ycrop) */
+	MUINT32 i4Crop[20][2]; /* [scenario][crop] -> (xcrop, ycrop) */
 };
 
 enum IMGSENSOR_HDR_SUPPORT_TYPE_ENUM {

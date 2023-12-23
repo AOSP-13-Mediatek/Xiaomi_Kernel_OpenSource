@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2015 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -15,6 +14,7 @@
 #ifndef __MTK_CHARGER_TYPE_H__
 #define __MTK_CHARGER_TYPE_H__
 
+#ifdef CONFIG_PISSARRO_CHARGER
 #ifdef CONFIG_FACTORY_BUILD
 #define SDP_ICL		600
 #define SDP_FCC		500
@@ -80,18 +80,6 @@
 #define CV_VBUS_MP2762_WA	9200
 #define CV_MP2762_WA_COUNT	4
 
-enum charger_type {
-	CHARGER_UNKNOWN = 0,
-	STANDARD_HOST,		/* USB : 450mA */
-	CHARGING_HOST,
-	NONSTANDARD_CHARGER,	/* AC : 450mA~1A */
-	STANDARD_CHARGER,	/* AC : ~1A */
-	APPLE_2_1A_CHARGER, /* 2.1A apple charger */
-	APPLE_1_0A_CHARGER, /* 1A apple charger */
-	APPLE_0_5A_CHARGER, /* 0.5A apple charger */
-	WIRELESS_CHARGER,
-};
-
 enum quick_charge_type {
 	QUICK_CHARGE_NORMAL = 0,
 	QUICK_CHARGE_FAST,
@@ -145,6 +133,19 @@ enum hvdcp3_type {
 	HVDCP3_27,
 	HVDCP35_18,
 	HVDCP35_27,
+};
+#endif
+
+enum charger_type {
+	CHARGER_UNKNOWN = 0,
+	STANDARD_HOST,		/* USB : 450mA */
+	CHARGING_HOST,
+	NONSTANDARD_CHARGER,	/* AC : 450mA~1A */
+	STANDARD_CHARGER,	/* AC : ~1A */
+	APPLE_2_1A_CHARGER, /* 2.1A apple charger */
+	APPLE_1_0A_CHARGER, /* 1A apple charger */
+	APPLE_0_5A_CHARGER, /* 0.5A apple charger */
+	WIRELESS_CHARGER,
 };
 
 #if defined(CONFIG_USB_MTK_HDRC) || defined(CONFIG_USB_MU3D_DRV) \

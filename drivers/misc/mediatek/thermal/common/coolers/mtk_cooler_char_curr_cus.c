@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -283,4 +282,5 @@ module_exit(mtk_cooler_char_curr_exit);
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 late_initcall(mtkcooler_char_curr_late_init);
 #endif
+
 

@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -57,8 +56,7 @@ static int mtk_cl_backlight_set_cur_state
 {
 	int enable = (state >= MAX_BACKLIGHT_BRIGHTNESS) ? 0 : 1;
 #if !defined(CONFIG_LEDS_MTK_DISP) && \
-		!defined(CONFIG_LEDS_MTK_PWM) && \
-		!defined(CONFIG_LEDS_MTK_I2C)
+		!defined(CONFIG_LEDS_MTK_PWM)
         int temp;
 
 #endif
@@ -66,8 +64,7 @@ static int mtk_cl_backlight_set_cur_state
 		? MAX_BACKLIGHT_BRIGHTNESS : state;
 
 #if defined(CONFIG_LEDS_MTK_DISP) || \
-		defined(CONFIG_LEDS_MTK_PWM) || \
-		defined(CONFIG_LEDS_MTK_I2C)
+		defined(CONFIG_LEDS_MTK_PWM)
 	setMaxBrightness("lcd-backlight", state, enable);
 #else
 	temp = state * 255 / 100;
@@ -157,3 +154,4 @@ static void __exit mtk_cooler_backlight_exit(void)
 }
 module_init(mtk_cooler_backlight_init);
 module_exit(mtk_cooler_backlight_exit);
+

@@ -32,7 +32,7 @@
 
 static void mdla_cmd_prepare_v2_0_hw_sched(struct mdla_run_cmd *cd,
 	struct apusys_cmd_hnd *apusys_hd,
-	struct command_entry *ce, int priority)
+	struct command_entry *ce, uint32_t priority)
 {
 	ce->mva = cd->mva + cd->offset;
 
@@ -60,12 +60,7 @@ static void mdla_cmd_prepare_v2_0_hw_sched(struct mdla_run_cmd *cd,
 	ce->cmdbuf = apusys_hd->cmdbuf;
 	ce->priority = priority;
 	ce->footprint = 0;
-
-	if (cd->offset_code_buf == 0)
-		/* for mdla UT */
-		ce->kva = (void *)apusys_mem_query_kva((u32)ce->mva);
-	else
-		ce->kva = (void *)(apusys_hd->cmd_entry + cd->offset_code_buf);
+	ce->kva = (void *)apusys_mem_query_kva((u32)ce->mva);
 
 	/* Initialize timestamp*/
 	ce->exec_time = 0;
@@ -86,11 +81,9 @@ static void mdla_cmd_prepare_v2_0_hw_sched(struct mdla_run_cmd *cd,
 
 	init_completion(&ce->swcmd_done_wait);
 
-	mdla_cmd_debug("%s: kva=0x%llx(0x%llx+0x%x) mva=0x%08x(0x%08x+0x%x) cnt=%u sz=0x%x\n",
+	mdla_cmd_debug("%s: kva=0x%llx mva=0x%08x(0x%08x+0x%x) cnt=%u sz=0x%x\n",
 			__func__,
 			(u64)ce->kva,
-			apusys_hd->cmd_entry,
-			cd->offset_code_buf,
 			ce->mva,
 			cd->mva,
 			cd->offset,
@@ -193,7 +186,7 @@ static int mdla_cmd_wrong_count_handler(struct mdla_dev *mdla_info,
 int mdla_cmd_run_sync_v2_0_hw_sched(struct mdla_run_cmd_sync *cmd_data,
 				struct mdla_dev *mdla_info,
 				struct apusys_cmd_hnd *apusys_hd,
-				int priority)
+				uint32_t priority)
 {
 	int ret = REASON_MDLA_SUCCESS;
 	unsigned long flags;
@@ -202,6 +195,7 @@ int mdla_cmd_run_sync_v2_0_hw_sched(struct mdla_run_cmd_sync *cmd_data,
 	struct mdla_run_cmd *cd = &cmd_data->req;
 	struct command_entry *ce;
 	struct mdla_scheduler *sched = mdla_info->sched;
+	uint64_t out_end;
 
 	u32 core_id = mdla_info->mdla_id;
 
@@ -243,6 +237,10 @@ int mdla_cmd_run_sync_v2_0_hw_sched(struct mdla_run_cmd_sync *cmd_data,
 
 	/* prepare CE */
 	mdla_cmd_prepare_v2_0_hw_sched(cd, apusys_hd, ce, priority);
+
+	out_end = apusys_hd->cmd_entry + apusys_hd->cmd_size;
+	if (mdla_cmd_plat_cb()->check_cmd_valid(out_end, ce) == false)
+		return -EINVAL;
 
 	ce->poweron_t = pwron_t;
 

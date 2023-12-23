@@ -3,7 +3,6 @@
  *  Driver for MT6360 PMIC part
  *
  *  Copyright (C) 2018 Mediatek Technology Inc.
- *  Copyright (C) 2021 XiaoMi, Inc.
  *  cy_huang <cy_huang@richtek.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -52,18 +51,6 @@ static const struct mt6360_pmic_platform_data def_platform_data = {
 	.pwr_off_seq = { 0x06, 0x04, 0x00, 0x02 },
 };
 
-static const u8 sys_ctrl_mask[MT6360_SYS_CTRLS_NUM] = {
-	0xfe, 0xc0, 0xff
-};
-
-static const u8 buck_ctrl_mask[MT6360_BUCK_CTRLS_NUM] = {
-	0xff, 0xff, 0xff, 0xff, 0xff, 0x8f, 0xff, 0xff
-};
-
-static const u8 ldo_ctrl_mask[MT6360_LDO_CTRLS_NUM] = {
-	0xff, 0x8f, 0x3f, 0xfe, 0xff
-};
-
 static int mt6360_pmic_read_device(void *client, u32 addr, int len, void *dst)
 {
 	struct i2c_client *i2c = client;
@@ -77,7 +64,7 @@ static int mt6360_pmic_read_device(void *client, u32 addr, int len, void *dst)
 		return -EINVAL;
 	}
 	chunk[0] = ((i2c->addr & 0x7f) << 1) + 1;
-	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
+	chunk[1] = (addr & 0x3f) | (((u8)(len - 1)) << 6);
 	ret =  i2c_smbus_read_i2c_block_data(client, chunk[1],
 					     len + 1, chunk + 2);
 	if (ret < 0)
@@ -102,7 +89,7 @@ static int mt6360_pmic_write_device(void *client, u32 addr,
 		return -EINVAL;
 	}
 	chunk[0] = (i2c->addr & 0x7f) << 1;
-	chunk[1] = (addr & 0x3f) | ((len - 1) << 6);
+	chunk[1] = (addr & 0x3f) | (((u8)(len - 1)) << 6);
 	memcpy(chunk + 2, src, len);
 	chunk[2 + len] = crc8(mpi->crc8_table, chunk, 2 + len, 0);
 	return i2c_smbus_write_i2c_block_data(client, chunk[1],
@@ -351,8 +338,8 @@ static struct resource *mt6360_pmic_get_irq_byname(struct device *dev,
 
 static void mt6360_pmic_irq_register(struct mt6360_pmic_info *mpi)
 {
-	struct mt6360_pmic_irq_desc *irq_desc;
-	struct resource *r;
+	struct mt6360_pmic_irq_desc *irq_desc = NULL;
+	struct resource *r = NULL;
 	int i, ret;
 
 	for (i = 0; i < ARRAY_SIZE(mt6360_pmic_irq_desc); i++) {
@@ -419,7 +406,7 @@ static int mt6360_pmic_is_enabled(struct regulator_dev *rdev)
 	ret = mt6360_pmic_reg_read(mpi, desc->enst_reg);
 	if (ret < 0)
 		return ret;
-	return (ret & desc->enst_mask) ? 1 : 0;
+	return ((u8)ret & desc->enst_mask) ? 1 : 0;
 }
 
 static int mt6360_enable_fpwm_usm(struct mt6360_pmic_info *mpi, bool en)
@@ -460,15 +447,14 @@ static int mt6360_pmic_get_voltage_sel(struct regulator_dev *rdev)
 {
 	struct mt6360_pmic_info *mpi = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev);
-	int shift = ffs(desc->vsel_mask) - 1;
-	int ret;
+	int id = rdev_get_id(rdev), ret;
+	u32 shift = ffs(desc->vsel_mask) - 1;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
 	ret = mt6360_pmic_reg_read(mpi, desc->vsel_reg);
 	if (ret < 0)
 		return ret;
-	ret &= (desc->vsel_mask);
+	ret = (u8)ret & (desc->vsel_mask);
 	ret >>= shift;
 	/* for LDO6/7 vocal add */
 	if (id > MT6360_PMIC_BUCK2) {
@@ -485,8 +471,8 @@ static int mt6360_pmic_set_voltage_sel(struct regulator_dev *rdev,
 {
 	struct mt6360_pmic_info *mpi = rdev_get_drvdata(rdev);
 	const struct regulator_desc *desc = rdev->desc;
-	int id = rdev_get_id(rdev);
-	int shift = ffs(desc->vsel_mask) - 1, ret;
+	int id = rdev_get_id(rdev), ret;
+	u32 shift = ffs(desc->vsel_mask) - 1;
 	u8 dvfs_down = 0;
 
 	mt_dbg(&rdev->dev, "%s, id = %d, sel 0x%02x\n", __func__, id, sel);
@@ -535,7 +521,8 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 	const struct mt6360_regulator_desc *desc =
 			       (const struct mt6360_regulator_desc *)rdev->desc;
 	int id = rdev_get_id(rdev);
-	int shift = ffs(desc->mode_mask) - 1, ret;
+	int ret;
+	u32 shift = ffs(desc->mode_mask) - 1, mask;
 	u8 val;
 
 	dev_dbg(&rdev->dev, "%s, id = %d, mode = %d\n", __func__, id, mode);
@@ -543,7 +530,9 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		return -ENOTSUPP;
 	if (!mode)
 		return -EINVAL;
-	switch (1 << (ffs(mode) - 1)) {
+	mask = (u32)(ffs(mode) - 1);
+	mask = 1 << mask;
+	switch (mask) {
 	case REGULATOR_MODE_NORMAL:
 		val = 0;
 		break;
@@ -551,7 +540,7 @@ static int mt6360_pmic_set_mode(struct regulator_dev *rdev, unsigned int mode)
 		val = 2;
 		break;
 	case REGULATOR_MODE_STANDBY:
-		val = 1;
+		val = 3;
 		break;
 	default:
 		return -ENOTSUPP;
@@ -571,16 +560,17 @@ static unsigned int mt6360_pmic_get_mode(struct regulator_dev *rdev)
 	const struct mt6360_regulator_desc *desc =
 			       (const struct mt6360_regulator_desc *)rdev->desc;
 	int id = rdev_get_id(rdev);
-	int shift = ffs(desc->moder_mask) - 1;
+	u32 shift = ffs(desc->moder_mask) - 1, val;
 	int ret;
 
 	mt_dbg(&rdev->dev, "%s, id = %d\n", __func__, id);
 	ret = mt6360_pmic_reg_read(mpi, desc->moder_reg);
 	if (ret < 0)
 		return ret;
-	ret &= desc->moder_mask;
-	ret >>= shift;
-	switch (ret) {
+	val = (u32)ret;
+	val &= desc->moder_mask;
+	val >>= shift;
+	switch (val) {
 	case 0:
 		ret = REGULATOR_MODE_NORMAL;
 		break;
@@ -660,7 +650,7 @@ static bool buck_vol_rewrite_needed(u32 val)
 	return val ? true : false;
 }
 
-static inline int mt6360_pdata_apply_helper(void *info, void *pdata,
+static inline int mt6360_pdata_apply_helper(void *info, void *const pdata,
 					   const struct mt6360_pdata_prop *prop,
 					   int prop_cnt)
 {
@@ -714,7 +704,7 @@ static int mt6360_pmic_parse_dt_data(struct device *dev,
 				     struct mt6360_pmic_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
-	struct resource *res;
+	struct resource *res = NULL;
 	int res_cnt, ret;
 
 	dev_dbg(dev, "%s ++\n", __func__);
@@ -752,7 +742,7 @@ static inline int mt6360_ldo_chip_id_check(struct i2c_client *i2c)
 	ret = i2c_smbus_read_byte_data(&pmu_client, 0x00);
 	if (ret < 0)
 		return ret;
-	if ((ret & 0xf0) != 0x50)
+	if (((u8)ret & 0xf0) != 0x50)
 		return -ENODEV;
 
 #if defined(CONFIG_MACH_MT6877)
@@ -766,7 +756,7 @@ static inline int mt6360_ldo_chip_id_check(struct i2c_client *i2c)
 	else
 		pmu_id = 0;
 #endif
-	return (ret & 0x0f);
+	return ((u8)ret & 0x0f);
 }
 
 static inline void mt6360_config_of_node(struct device *dev, const char *name)
@@ -811,10 +801,10 @@ static int mt6360_pmic_i2c_probe(struct i2c_client *client,
 {
 	struct mt6360_pmic_platform_data *pdata =
 					dev_get_platdata(&client->dev);
-	struct mt6360_pmic_info *mpi;
+	struct mt6360_pmic_info *mpi = NULL;
 	bool use_dt = client->dev.of_node;
 	struct regulator_config config = {};
-	struct regulation_constraints *constraints;
+	struct regulation_constraints *constraints = NULL;
 	u8 chip_rev;
 	int i, ret;
 
@@ -866,7 +856,7 @@ static int mt6360_pmic_i2c_probe(struct i2c_client *client,
 	}
 #if defined(CONFIG_MTK_CHARGER)
 	/* get charger device for dvfs in FPWM mode */
-	mpi->chg_dev = get_charger_by_name("pmic");
+	mpi->chg_dev = get_charger_by_name("primary_chg");
 	if (!mpi->chg_dev) {
 		dev_err(&client->dev, "%s: get charger device fail\n",
 			__func__);

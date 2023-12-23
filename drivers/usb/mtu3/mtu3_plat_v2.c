@@ -40,29 +40,6 @@ MODULE_PARM_DESC(debug_level, "Debug Print Log Lvl");
  * 1: Super Speed
  */
 u32 mtu3_speed;
-static int set_musb_speed(const char *val, const struct kernel_param *kp)
-{
-	int ret;
-	u32 u3_en;
-
-	ret = kstrtou32(val, 10, &u3_en);
-	if (ret)
-		return ret;
-
-	if (u3_en != 0 && u3_en != 1)
-		return -EINVAL;
-
-	mtu3_speed = u3_en;
-
-	return 0;
-}
-static struct kernel_param_ops musb_speed_param_ops = {
-	.set = set_musb_speed,
-	.get = param_get_int,
-};
-module_param_cb(speed, &musb_speed_param_ops, &mtu3_speed, 0644);
-MODULE_PARM_DESC(debug, "USB speed configuration. default = 1, spuper speed.");
-
 
 #ifdef CONFIG_SYSFS
 const char *const mtu3_mode_str[CABLE_MODE_MAX] = { "CHRG_ONLY",
@@ -552,10 +529,10 @@ static int get_ssusb_rscs(struct platform_device *pdev, struct ssusb_mtk *ssusb)
 	}
 
 	ssusb->ippc_base = devm_ioremap(dev, res->start, resource_size(res));
-		if (IS_ERR(ssusb->ippc_base)) {
-			dev_info(dev, "failed to map memory for ippc\n");
-			return PTR_ERR(ssusb->ippc_base);
-		}
+	if (IS_ERR(ssusb->ippc_base)) {
+		dev_info(dev, "failed to map memory for ippc\n");
+		return PTR_ERR(ssusb->ippc_base);
+	}
 
 	ssusb->dr_mode = usb_get_dr_mode(dev);
 	if (ssusb->dr_mode == USB_DR_MODE_UNKNOWN) {
@@ -772,6 +749,7 @@ static int __maybe_unused mtu3_suspend(struct device *dev)
 	ssusb_clk_off(ssusb, ssusb->is_host);
 	ssusb_wakeup_mode_enable(ssusb);
 	ssusb_wakeup_set(ssusb, true);
+	ssusb_dpidle_request(USB_DPIDLE_SUSPEND);
 	return 0;
 }
 
@@ -785,6 +763,7 @@ static int __maybe_unused mtu3_resume(struct device *dev)
 	if (!ssusb->is_host)
 		return 0;
 
+	ssusb_dpidle_request(USB_DPIDLE_RESUME);
 	ssusb_wakeup_set(ssusb, false);
 	ssusb_wakeup_mode_disable(ssusb);
 	ssusb_clk_on(ssusb, ssusb->is_host);

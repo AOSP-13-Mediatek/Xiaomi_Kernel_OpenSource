@@ -2,7 +2,6 @@
  *  drivers/misc/mediatek/pmic/mt6360/inc/mt6360_pmu_chg.h
  *
  *  Copyright (C) 2018 Mediatek Technology Corp.
- *  Copyright (C) 2021 XiaoMi, Inc.
  *  cy_huang <cy_huang@richtek.com>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -32,9 +31,11 @@ struct mt6360_chg_platform_data {
 	u32 ircmp_vclamp;
 	u32 en_te;
 	u32 en_wdt;
+	u32 en_otg_wdt;
 	u32 aicc_once;
 	u32 post_aicc;
 	u32 batoc_notify;
+	u32 en_eoc;
 	const char *chg_name;
 };
 
@@ -53,6 +54,7 @@ struct mt6360_chg_platform_data {
 #define MT6360_MASK_SHIP_MODE	BIT(7)
 #define MT6360_MASK_IINLMTSEL	(0x0C)
 #define MT6360_SHFT_IINLMTSEL	(2)
+#define MT6360_MASK_BYPASS_MODE	BIT(5)
 #define MT6360_MASK_TE_EN	BIT(4)
 #define MT6360_SHFT_TE_EN	(4)
 #define MT6360_MASK_CFO_EN	BIT(1)

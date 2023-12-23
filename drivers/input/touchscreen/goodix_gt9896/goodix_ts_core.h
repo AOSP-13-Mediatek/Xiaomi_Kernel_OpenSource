@@ -3,7 +3,6 @@
  * Core layer of touchdriver architecture.
  *
  * Copyright (C) 2019 - 2020 Goodix, Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Authors: Wang Yafei <wangyafei@goodix.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -502,7 +501,10 @@ struct goodix_ts_core {
 	struct work_struct power_supply_work;
 	struct power_supply *battery_psy;
 
+	struct proc_dir_entry *tp_fw_version_proc;
+	struct proc_dir_entry *tp_lockdown_info_proc;
 	struct proc_dir_entry *tp_selftest_proc;
+	struct proc_dir_entry *tp_data_dump_proc;
 
 	struct dentry *debugfs;
 

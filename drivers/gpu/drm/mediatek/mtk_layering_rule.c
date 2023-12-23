@@ -193,8 +193,7 @@ static void filter_2nd_display(struct drm_mtk_layering_info *disp_info)
 				continue;
 
 			layer_cnt++;
-			if (layer_cnt > max_layer_cnt ||
-				(layer_cnt == max_layer_cnt && layer_cnt < disp_info->layer_num[i]))
+			if (layer_cnt >= max_layer_cnt)
 				mtk_rollback_layer_to_GPU(disp_info, i, j);
 		}
 	}
@@ -270,7 +269,8 @@ static void filter_by_wcg(struct drm_device *dev,
 static bool can_be_compress(uint32_t format)
 {
 #if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) || \
-	defined(CONFIG_MACH_MT6877)
+	defined(CONFIG_MACH_MT6877) || defined(CONFIG_MACH_MT6833) || \
+	defined(CONFIG_MACH_MT6781)
 	if (mtk_is_yuv(format))
 		return 0;
 #else
@@ -522,7 +522,11 @@ unsigned long long _layering_get_frame_bw(struct drm_crtc *crtc,
 
 	bw_base = (unsigned long long)width * height * fps * 125 * 4;
 
+#if BITS_PER_LONG == 32
+	do_div(bw_base, 100 * 1024 * 1024);
+#else
 	bw_base /= 100 * 1024 * 1024;
+#endif
 
 	return bw_base;
 }
@@ -552,7 +556,11 @@ static int layering_get_valid_hrt(struct drm_crtc *crtc,
 		DDPPR_ERR("Get frame hrt bw by datarate is zero\n");
 		return 600;
 	}
+#if BITS_PER_LONG == 32
+	do_div(dvfs_bw, tmp * 100);
+#else
 	dvfs_bw /= tmp * 100;
+#endif
 
 	/* error handling when requested BW is less than 2 layers */
 	if (dvfs_bw < 200) {

@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -153,4 +152,5 @@ static int __init mtk_cooler_flashlight_late_init(void)
 module_init(mtk_cooler_flashlight_init);
 module_exit(mtk_cooler_flashlight_exit);
 late_initcall(mtk_cooler_flashlight_late_init);
+
 

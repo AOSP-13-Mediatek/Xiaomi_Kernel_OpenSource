@@ -106,6 +106,9 @@ struct cpufreq_cooling_device {
 	struct list_head node;
 	struct time_in_idle *idle_time;
 	get_static_t plat_get_static_power;
+	/* Tmp fix oom bug: size: 64 = struct mtk_thermal_cooler_data -
+	struct cpufreq_cooling_device */
+	char padding[64];
 };
 
 static DEFINE_IDA(cpufreq_ida);
@@ -944,6 +947,7 @@ void cpufreq_cooling_unregister(struct thermal_cooling_device *cdev)
 	kfree(cpufreq_cdev);
 }
 EXPORT_SYMBOL_GPL(cpufreq_cooling_unregister);
+
 
 int cpufreq_platform_cooling_register(void)
 {

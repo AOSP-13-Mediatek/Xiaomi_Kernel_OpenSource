@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Author: Sagy Shih <sagy.shih@mediatek.com>
  */
 
@@ -23,7 +22,6 @@
 
 static struct platform_device *dramc_pdev;
 static struct platform_driver dramc_drv;
-
 
 static int ddr_info_show(struct seq_file *m, void *v)
 {
@@ -434,7 +432,6 @@ static int dramc_probe(struct platform_device *pdev)
 		}
 	}
 
-
 	proc_entry = proc_create("ddr_info", 0444, NULL, &ddr_info_proc_fops);
 
 	platform_set_drvdata(pdev, dramc_dev_ptr);
@@ -513,6 +510,8 @@ EXPORT_SYMBOL(mtk_dramc_get_steps_freq);
 static unsigned int decode_freq(unsigned int vco_freq)
 {
 	switch (vco_freq) {
+	case 5460:
+		return 5500;
 	case 4264:
 		return 4266;
 	case 3718:

@@ -2,7 +2,6 @@
 
 /*
  * Copyright (c) 2014-2020, Elliptic Laboratories AS. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Elliptic Labs Linux driver
  */
 
@@ -675,7 +674,7 @@ int elliptic_calibration_param_put(
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	struct elliptic_system_configuration_parameter param;
-	pr_info("%s: reg: %d shift: %d val: %ld\n", __func__, mc->reg, mc->shift, ucontrol->value.integer.value[0]);
+
 	if (mc->reg != ELLIPTIC_CALIBRATION)
 		return -EINVAL;
 

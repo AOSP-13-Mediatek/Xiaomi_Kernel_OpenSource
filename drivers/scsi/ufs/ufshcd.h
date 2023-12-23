@@ -75,10 +75,6 @@
 #include "ufshpb_skh.h"
 #endif
 
-#if defined(CONFIG_CLD)
-#include "ufsfeatures/cld/mi_cld.h"
-#endif
-
 /* MTK PATCH */
 #include <linux/rpmb.h>
 
@@ -284,6 +280,7 @@ struct ufs_desc_size {
 	int interc_desc;
 	int unit_desc;
 	int conf_desc;
+	int health_desc;
 };
 
 /**
@@ -577,6 +574,14 @@ struct ufs_event_hist {
 struct ufs_stats {
 	u32 hibern8_exit_cnt;
 	ktime_t last_hibern8_exit_tstamp;
+
+        u32 pa_err_cnt_total;
+        u32 pa_err_cnt[UFS_EC_PA_MAX];
+        u32 dl_err_cnt_total;
+        u32 dl_err_cnt[UFS_EC_DL_MAX];
+        u32 dme_err_cnt;
+        u32 power_mode_change_cnt;
+
 	struct ufs_event_hist event[UFS_EVT_CNT];
 };
 
@@ -988,9 +993,6 @@ struct ufs_hba {
 	u32 ufs_mtk_qcmd_r_cmd_cnt;
 	u32 ufs_mtk_qcmd_w_cmd_cnt;
 
-#if defined(CONFIG_CLD)
-	struct ufscld_dev cld;
-#endif
 };
 
 /* MTK PATCH */
@@ -1230,33 +1232,18 @@ int ufshcd_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
 	enum flag_idn idn, bool *flag_res);
 int ufshcd_hold(struct ufs_hba *hba, bool async);
 void ufshcd_release(struct ufs_hba *hba);
-
-
-
-
-#if defined(CONFIG_UFSFEATURE)
-int ufshcd_exec_dev_cmd(struct ufs_hba *hba,
-			enum dev_cmd_type cmd_type, int timeout);
-void ufshcd_scsi_block_requests(struct ufs_hba *hba);
-void ufshcd_scsi_unblock_requests(struct ufs_hba *hba);
-int ufshcd_wait_for_doorbell_clr(struct ufs_hba *hba,
-					u64 wait_timeout_us,
-					bool ignore_state,
-					int tr_allowed,
-					int tm_allowed);
-int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
-			u8 tm_function, u8 *tm_response);
-int ufshcd_query_attr_retry(struct ufs_hba *hba,
-	enum query_opcode opcode, enum attr_idn idn, u8 index, u8 selector,
-	u32 *attr_val);
-#endif
-
-
 #if defined(CONFIG_UFSFEATURE)
 int ufshcd_exec_dev_cmd(struct ufs_hba *hba,
 			enum dev_cmd_type cmd_type, int timeout);
 int ufshcd_comp_scsi_upiu(struct ufs_hba *hba, struct ufshcd_lrb *lrbp);
 int ufshcd_map_sg(struct ufs_hba *hba, struct ufshcd_lrb *lrbp);
+void ufshcd_scsi_block_requests(struct ufs_hba *hba);
+void ufshcd_scsi_unblock_requests(struct ufs_hba *hba);
+int ufshcd_wait_for_doorbell_clr(struct ufs_hba *hba,
+				u64 wait_timeout_us,
+				bool ignore_state,
+				int tr_allowed,
+				int tm_allowed);
 #endif
 
 #if defined(CONFIG_SCSI_SKHPB)

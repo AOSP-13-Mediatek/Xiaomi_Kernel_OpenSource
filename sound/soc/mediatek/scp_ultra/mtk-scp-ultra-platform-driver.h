@@ -3,7 +3,6 @@
  * mtk-scp-spk-platform-driver.h --  Mediatek scp spk platform driver
  *
  * Copyright (c) 2018 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Author: Shane Chien <shane.chien@mediatek.com>
  */
 

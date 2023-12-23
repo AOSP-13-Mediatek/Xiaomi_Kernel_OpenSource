@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -75,6 +74,24 @@ struct SCP_LOG_INFO {
 	uint32_t scp_log_buf_maxlen;
 };
 
+struct scp_logger_ctrl_msg {
+	unsigned int cmd;
+	union {
+		struct {
+			unsigned int addr;
+			unsigned int size;
+		} init;
+		struct {
+			unsigned int enable;
+		} flag;
+		struct SCP_LOG_INFO info;
+	} u;
+};
+
+#define SCP_LOGGER_IPI_INIT       0x4C4F4701
+#define SCP_LOGGER_IPI_ENABLE     0x4C4F4702
+#define SCP_LOGGER_IPI_WAKEUP     0x4C4F4703
+#define SCP_LOGGER_IPI_SET_FILTER 0x4C4F4704
 
 static unsigned int scp_A_logger_inited;
 static unsigned int scp_A_logger_wakeup_ap;
@@ -101,8 +118,7 @@ unsigned int log_ctl_debug;
 static struct mutex scp_logger_mutex;
 
 /* ipi message buffer */
-struct SCP_LOG_INFO msg_logger_init;
-char msg_logger_wk[4];
+struct scp_logger_ctrl_msg msg_scp_logger_ctrl;
 
 /*
  * get log from scp when received a buf full notify
@@ -225,7 +241,7 @@ ssize_t scp_A_log_read(char __user *data, size_t len)
 	w_pos = SCP_A_buf_info->w_pos;
 
 #ifdef SCP_LOGGER_OVERWRITE
-	pr_err("scp_A_log_read: len= %d\n", len);
+	//pr_err("scp_A_log_read: len= %d\n", len);
 
 	if (get_scp_semaphore(HW_SEM_LOGGER) < 0) {
 		pr_err("[SCP]: HW_semaphore Get fail.\n");
@@ -343,6 +359,7 @@ static unsigned int scp_A_log_enable_set(unsigned int enable)
 {
 	int ret;
 	unsigned int retrytimes;
+	struct scp_logger_ctrl_msg msg;
 
 	if (scp_A_logger_inited) {
 		/*
@@ -352,8 +369,11 @@ static unsigned int scp_A_log_enable_set(unsigned int enable)
 		enable = (enable) ? SCP_LOGGER_ON : SCP_LOGGER_OFF;
 		retrytimes = SCP_IPI_RETRY_TIMES;
 		do {
-			ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_LOGGER_ENABLE_1,
-				0, &enable, PIN_OUT_SIZE_LOGGER_ENABLE_1, 0);
+			msg.cmd = SCP_LOGGER_IPI_ENABLE;
+			msg.u.flag.enable = enable;
+			ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_LOGGER_CTRL,
+				0, &msg, sizeof(msg)/MBOX_SLOT_SIZE, 0);
+
 			if (ret == IPI_ACTION_DONE)
 				break;
 			retrytimes--;
@@ -385,6 +405,7 @@ static unsigned int scp_A_log_wakeup_set(unsigned int enable)
 {
 	int ret;
 	unsigned int retrytimes;
+	struct scp_logger_ctrl_msg msg;
 
 	if (scp_A_logger_inited) {
 		/*
@@ -394,8 +415,11 @@ static unsigned int scp_A_log_wakeup_set(unsigned int enable)
 		enable = (enable) ? 1 : 0;
 		retrytimes = SCP_IPI_RETRY_TIMES;
 		do {
-			ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_LOGGER_WAKEUP_1,
-				0, &enable, PIN_OUT_SIZE_LOGGER_WAKEUP_1, 0);
+			msg.cmd = SCP_LOGGER_IPI_WAKEUP;
+			msg.u.flag.enable = enable;
+			ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_LOGGER_CTRL,
+				0, &msg, sizeof(msg)/MBOX_SLOT_SIZE, 0);
+
 			if (ret == IPI_ACTION_DONE)
 				break;
 			retrytimes--;
@@ -520,7 +544,9 @@ static ssize_t scp_A_mobile_log_UT_show(struct device *kobj,
 
 	w_pos = SCP_A_buf_info->w_pos;
 
-#ifdef SCP_LOGGER_OVERWRITE
+	#ifdef SCP_LOGGER_OVERWRITE
+	pr_err("scp_A_log_read: len= %d\n", len);
+
 	if (get_scp_semaphore(HW_SEM_LOGGER) < 0) {
 		pr_err("[SCP]: HW_semaphore Get fail.\n");
 		mutex_unlock(&scp_A_log_mutex);
@@ -528,7 +554,7 @@ static ssize_t scp_A_mobile_log_UT_show(struct device *kobj,
 	}
 #endif
 
-    r_pos = SCP_A_buf_info->r_pos;
+	r_pos = SCP_A_buf_info->r_pos;
 
 	if (r_pos == w_pos)
 		goto error;
@@ -587,18 +613,43 @@ DEVICE_ATTR(scp_A_mobile_log_UT, 0644,
 		scp_A_mobile_log_UT_show, scp_A_mobile_log_UT_store);
 #endif
 
+static ssize_t scp_set_log_filter(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int ret;
+	uint32_t filter;
+	struct scp_logger_ctrl_msg msg;
+
+	if (sscanf(buf, "0x%08x", &filter) != 1)
+		return -EINVAL;
+
+	msg.cmd = SCP_LOGGER_IPI_SET_FILTER;
+	msg.u.flag.enable = filter;
+	ret = mtk_ipi_send(&scp_ipidev, IPI_OUT_LOGGER_CTRL, 0, &msg,
+			   sizeof(msg)/MBOX_SLOT_SIZE, 0);
+	switch (ret) {
+	case IPI_ACTION_DONE:
+		pr_notice("[SCP] Set log filter to 0x%08x\n", filter);
+		return count;
+
+	case IPI_PIN_BUSY:
+		pr_notice("[SCP] IPI busy. Set log filter failed!\n");
+		return -EBUSY;
+
+	default:
+		pr_notice("[SCP] IPI error. Set log filter failed!\n");
+		return -EIO;
+	}
+}
+DEVICE_ATTR(log_filter, 0200, NULL, scp_set_log_filter);
+
+
 /*
  * IPI for logger init
- * @param id:   IPI id
- * @param prdata: callback function parameter
- * @param data:  IPI data
- * @param len: IPI data length
  */
-static int scp_logger_init_handler(unsigned int id, void *prdata, void *data,
-				    unsigned int len)
+static int scp_logger_init_handler(struct SCP_LOG_INFO *log_info)
 {
 	unsigned long flags;
-	struct SCP_LOG_INFO *log_info = (struct SCP_LOG_INFO *)data;
 
 	pr_debug("[SCP]scp_get_reserve_mem_phys=%llx\n",
 		(uint64_t)scp_get_reserve_mem_phys(SCP_A_LOGGER_MEM_ID));
@@ -646,6 +697,32 @@ static int scp_logger_init_handler(unsigned int id, void *prdata, void *data,
 }
 
 /*
+ * IPI for logger control
+ * @param id:   IPI id
+ * @param prdata: callback function parameter
+ * @param data:  IPI data
+ * @param len: IPI data length
+ */
+static int scp_logger_ctrl_handler(unsigned int id, void *prdata, void *data,
+				    unsigned int len)
+{
+	struct scp_logger_ctrl_msg msg = *(struct scp_logger_ctrl_msg *)data;
+
+	switch (msg.cmd) {
+	case SCP_LOGGER_IPI_INIT:
+		scp_logger_init_handler(&msg.u.info);
+		break;
+	case SCP_LOGGER_IPI_WAKEUP:
+		scp_logger_wakeup_handler(id, prdata, &msg.u.flag, len);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/*
  * callback function for work struct
  * notify apps to start their tasks or generate an exception according to flag
  * NOTE: this function may be blocked and should not be called in interrupt
@@ -657,11 +734,12 @@ static void scp_logger_notify_ws(struct work_struct *ws)
 	unsigned int retrytimes;
 	int ret;
 	unsigned int scp_ipi_id;
-	unsigned int dram_info[2];
+	struct scp_logger_ctrl_msg msg;
 
-	scp_ipi_id = IPI_OUT_LOGGER_INIT_1;
-	dram_info[0] = scp_get_reserve_mem_phys(SCP_A_LOGGER_MEM_ID);
-	dram_info[1] = scp_get_reserve_mem_size(SCP_A_LOGGER_MEM_ID);
+	scp_ipi_id = IPI_OUT_LOGGER_CTRL;
+	msg.cmd = SCP_LOGGER_IPI_INIT;
+	msg.u.init.addr = scp_get_reserve_mem_phys(SCP_A_LOGGER_MEM_ID);
+	msg.u.init.size = scp_get_reserve_mem_size(SCP_A_LOGGER_MEM_ID);
 
 	pr_notice("[SCP] %s: id=%u\n", __func__, scp_ipi_id);
 	/*
@@ -669,8 +747,9 @@ static void scp_logger_notify_ws(struct work_struct *ws)
 	 */
 	retrytimes = SCP_IPI_RETRY_TIMES;
 	do {
-		ret = mtk_ipi_send(&scp_ipidev, scp_ipi_id, 0, dram_info,
-				   PIN_OUT_SIZE_LOGGER_INIT_1, 0);
+		ret = mtk_ipi_send(&scp_ipidev, scp_ipi_id, 0, &msg,
+				   sizeof(msg)/MBOX_SLOT_SIZE, 0);
+
 		if ((retrytimes % 500) == 0)
 			pr_debug("[SCP] %s: ipi ret=%d\n", __func__, ret);
 		if (ret == IPI_ACTION_DONE)
@@ -746,15 +825,10 @@ int scp_logger_init(phys_addr_t start, phys_addr_t limit)
 		scp_A_last_log = vmalloc(last_log_info.scp_log_buf_maxlen + 1);
 	}
 
-	/* register logger ini IPI */
-	mtk_ipi_register(&scp_ipidev, IPI_IN_LOGGER_INIT_1,
-			(void *)scp_logger_init_handler, NULL,
-			&msg_logger_init);
-
-	/* register log wakeup IPI */
-	mtk_ipi_register(&scp_ipidev, IPI_IN_LOGGER_WAKEUP_1,
-			(void *)scp_logger_wakeup_handler, NULL,
-			msg_logger_wk);
+	/* register logger ctrl IPI */
+	mtk_ipi_register(&scp_ipidev, IPI_IN_LOGGER_CTRL,
+			(void *)scp_logger_ctrl_handler, NULL,
+			&msg_scp_logger_ctrl);
 
 	scp_A_logger_inited = 1;
 

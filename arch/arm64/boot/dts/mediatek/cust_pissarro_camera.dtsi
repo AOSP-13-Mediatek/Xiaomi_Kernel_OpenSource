@@ -334,7 +334,7 @@
         cam4_vcamiow-supply = <&wl2868c_l5>;
 
 
-        cam0_enable_sensor = "s5khm2sp_ofilm_mipi_raw s5khm2sp_sunny_mipi_raw s5khm2sd_ofilm_mipi_raw s5khm2sd_sunny_mipi_raw";
+        cam0_enable_sensor = "s5khm2sd_ofilm_mipi_raw s5khm2sd_sunny_mipi_raw";
         cam1_enable_sensor = "imx471_ofilm_mipi_raw imx471_sunny_mipi_raw";
         cam2_enable_sensor = "s5k4h7_sunny_mipi_raw s5k4h7_aac_mipi_raw";
         cam3_enable_sensor = "";

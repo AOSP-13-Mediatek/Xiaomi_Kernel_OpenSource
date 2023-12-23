@@ -227,6 +227,10 @@ static struct ufs_dev_fix ufs_fixups[] = {
 		UFS_DEVICE_NO_FASTAUTO),
 	UFS_FIX(UFS_VENDOR_SAMSUNG, UFS_ANY_MODEL,
 		UFS_DEVICE_QUIRK_HOST_PA_TACTIVATE),
+	UFS_FIX(UFS_VENDOR_SAMSUNG, "KLUDG4UHDC-B0E1",
+		UFS_DEVICE_QUIRK_PA_HIBER8TIME),
+	UFS_FIX(UFS_VENDOR_SAMSUNG, "KLUEG8UHDC-B0E1",
+		UFS_DEVICE_QUIRK_PA_HIBER8TIME),
 	UFS_FIX(UFS_VENDOR_TOSHIBA, UFS_ANY_MODEL,
 		UFS_DEVICE_QUIRK_DELAY_BEFORE_LPM),
 	UFS_FIX(UFS_VENDOR_TOSHIBA, "THGLF2G9C8KBADG",
@@ -1376,10 +1380,10 @@ static bool ufshcd_is_devfreq_scaling_required(struct ufs_hba *hba,
 
 #if defined(CONFIG_UFSFEATURE)
 int ufshcd_wait_for_doorbell_clr(struct ufs_hba *hba,
-					u64 wait_timeout_us,
-					bool ignore_state,
-					int tr_allowed,
-					int tm_allowed)
+				u64 wait_timeout_us,
+				bool ignore_state,
+				int tr_allowed,
+				int tm_allowed)
 #else
 static int ufshcd_wait_for_doorbell_clr(struct ufs_hba *hba,
 					u64 wait_timeout_us,
@@ -2786,9 +2790,8 @@ static int ufshcd_comp_scsi_upiu(struct ufs_hba *hba, struct ufshcd_lrb *lrbp)
 
 	if (likely(lrbp->cmd)) {
 #if defined(CONFIG_UFSFEATURE)
-		ufsf_hpb_change_lun(&hba->ufsf, lrbp);
-		ufsf_tw_prep_fn(&hba->ufsf, lrbp);
-		ufsf_hpb_prep_fn(&hba->ufsf, lrbp);
+		ufsf_change_read10_debug_lun(&hba->ufsf, lrbp);
+		ufsf_prep_fn(&hba->ufsf, lrbp);
 #endif
 		ufshcd_prepare_req_desc_hdr(hba, lrbp, &upiu_flags,
 						lrbp->cmd->sc_data_direction);
@@ -3061,11 +3064,11 @@ send_orig_cmd:
 #if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSHPB)
 	if (!pre_req_err) {
 		ufshcd_vops_setup_xfer_req(hba, add_tag,
-			(add_lrbp->cmd ? true : false));
+				(add_lrbp->cmd ? true : false));
 		ufshcd_send_command(hba, add_tag);
 		req_sent = true;
 		pre_req_err = -EBUSY;
-		atomic64_inc(&hba->ufsf.ufshpb_lup[add_lrbp->lun]->pre_req_cnt);
+		atomic64_inc(&hba->ufsf.hpb_lup[add_lrbp->lun]->pre_req_cnt);
 	}
 #endif
 	ufshcd_vops_setup_xfer_req(hba, tag, (lrbp->cmd ? true : false));
@@ -3594,16 +3597,9 @@ out:
  *
  * Returns 0 for success, non-zero in case of failure
 */
-
-#if defined(CONFIG_UFSFEATURE)
-int ufshcd_query_attr_retry(struct ufs_hba *hba,
-	enum query_opcode opcode, enum attr_idn idn, u8 index, u8 selector,
-	u32 *attr_val)
-#else
 static int ufshcd_query_attr_retry(struct ufs_hba *hba,
 	enum query_opcode opcode, enum attr_idn idn, u8 index, u8 selector,
 	u32 *attr_val)
-#endif
 {
 	int ret = 0;
 	u32 retries;
@@ -4870,6 +4866,7 @@ static int ufshcd_change_power_mode(struct ufs_hba *hba,
 
 		memcpy(&hba->pwr_info, pwr_mode,
 			sizeof(struct ufs_pa_layer_attr));
+		hba->ufs_stats.power_mode_change_cnt++;
 	}
 
 	return ret;
@@ -5472,15 +5469,9 @@ static int ufshcd_slave_configure(struct scsi_device *sdev)
 {
 	struct ufs_hba *hba = shost_priv(sdev->host);
 	struct request_queue *q = sdev->request_queue;
-#if defined(CONFIG_UFSFEATURE)
-	struct ufsf_feature *ufsf = &hba->ufsf;
 
-	if (ufsf_is_valid_lun(sdev->lun)) {
-		ufsf->sdev_ufs_lu[sdev->lun] = sdev;
-		ufsf->slave_conf_cnt++;
-		printk(KERN_ERR "%s: ufsfeature set lun %d sdev %p q %p\n",
-		       __func__, (int)sdev->lun, sdev, sdev->request_queue);
-	}
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_slave_configure(&hba->ufsf, sdev);
 #endif
 
 	blk_queue_update_dma_pad(q, PRDT_DATA_BYTE_COUNT_PAD - 1);
@@ -5808,6 +5799,9 @@ static int __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 	int index;
 	u32 ocs_err_status;
 	unsigned long handled_reqs = 0, requeued_reqs = 0;
+#if defined(CONFIG_UFSFEATURE)
+	bool scsi_req = false;
+#endif
 
 	ocs_err_status = ufshcd_readl(hba, REG_UFS_MTK_OCS_ERR_STATUS);
 	if (ocs_err_status & 0xC0000000) {
@@ -5888,6 +5882,9 @@ static int __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 			/* Do not touch lrbp after scsi done */
 			cmd->scsi_done(cmd);
 			__ufshcd_release(hba);
+#if defined(CONFIG_UFSFEATURE)
+			scsi_req = true;
+#endif
 		} else if (lrbp->command_type == UTP_CMD_TYPE_DEV_MANAGE ||
 			lrbp->command_type == UTP_CMD_TYPE_UFS_STORAGE) {
 			if (hba->dev_cmd.complete) {
@@ -5910,12 +5907,14 @@ static int __ufshcd_transfer_req_compl(struct ufs_hba *hba,
 
 	/* we might have free'd some tags above */
 	wake_up(&hba->dev_cmd.tag_wq);
-#if defined(CONFIG_CLD)
-	ufscld_on_idle(hba);
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_on_idle(&hba->ufsf, scsi_req);
 #endif
-
 	if (requeued_reqs)
 		dev_info(hba->dev, "requeued: 0x%x\n", requeued_reqs);
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_on_idle(&hba->ufsf, scsi_req);
+#endif
 	return 0;
 }
 
@@ -6243,10 +6242,6 @@ static void ufshcd_exception_event_handler(struct work_struct *work)
 
 	if (status & MASK_EE_URGENT_BKOPS)
 		ufshcd_bkops_exception_event_handler(hba);
-
-#if defined(CONFIG_UFSFEATURE)
-	ufsf_tw_ee_handler(&hba->ufsf);
-#endif
 out:
 	ufshcd_scsi_unblock_requests(hba);
 	pm_runtime_put_sync(hba->dev);
@@ -6981,13 +6976,8 @@ out:
  *
  * Returns non-zero value on error, zero on success.
  */
-#if defined(CONFIG_UFSFEATURE)
-int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
-		u8 tm_function, u8 *tm_response)
-#else
 static int ufshcd_issue_tm_cmd(struct ufs_hba *hba, int lun_id, int task_id,
 		u8 tm_function, u8 *tm_response)
-#endif
 {
 	struct utp_task_req_desc *task_req_descp;
 	struct utp_upiu_task_req *task_req_upiup;
@@ -7143,8 +7133,7 @@ out:
 	ufshcd_update_evt_hist(hba, UFS_EVT_DEV_RESET, (u32)err);
 	if (!err) {
 #if defined(CONFIG_UFSFEATURE)
-		ufsf_hpb_reset_lu(&hba->ufsf);
-		ufsf_tw_reset_lu(&hba->ufsf);
+		ufsf_reset_lu(&hba->ufsf);
 #endif
 #if defined(CONFIG_SCSI_SKHPB)
 		if (hba->card->wmanufacturerid == UFS_VENDOR_SKHYNIX) {
@@ -7384,6 +7373,9 @@ static int ufshcd_host_reset_and_restore(struct ufs_hba *hba)
 	int err;
 	unsigned long flags;
 
+#if defined(CONFIG_UFSFEATURE)
+	ufsf_reset_host(&hba->ufsf);
+#endif
 	/*
 	 * Stop the host controller and complete the requests
 	 * cleared by h/w
@@ -7391,8 +7383,7 @@ static int ufshcd_host_reset_and_restore(struct ufs_hba *hba)
 	spin_lock_irqsave(hba->host->host_lock, flags);
 	ufshcd_hba_stop(hba, false);
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_reset_host(&hba->ufsf);
-	ufsf_tw_reset_host(&hba->ufsf);
+	ufsf_reset_host(&hba->ufsf);
 #endif
 	hba->silence_err_logs = true;
 	ufshcd_complete_requests(hba);
@@ -8099,6 +8090,11 @@ static int ufshcd_tune_pa_hibern8time(struct ufs_hba *hba)
 	int ret = 0;
 	u32 local_tx_hibern8_time_cap = 0, peer_rx_hibern8_time_cap = 0;
 	u32 max_hibern8_time, tuned_pa_hibern8time;
+	u32 pa_hibern8time_quirk_enabled = hba->dev_quirks & UFS_DEVICE_QUIRK_PA_HIBER8TIME;
+
+	if (!ufshcd_is_unipro_pa_params_tuning_req(hba) && !pa_hibern8time_quirk_enabled) {
+		return 0;
+	}
 
 	ret = ufshcd_dme_get(hba,
 			     UIC_ARG_MIB_SEL(TX_HIBERN8TIME_CAPABILITY,
@@ -8119,6 +8115,15 @@ static int ufshcd_tune_pa_hibern8time(struct ufs_hba *hba)
 	/* make sure proper unit conversion is applied */
 	tuned_pa_hibern8time = ((max_hibern8_time * HIBERN8TIME_UNIT_US)
 				/ PA_HIBERN8_TIME_UNIT_US);
+
+	/* PA_HIBERN8TIME is product of tuned_pa_hibern8time * granularity,
+	 * setting tuned_pa_hibern8time as 3 and since granularity is 100us
+	 * for both host and device side, 3 *100us = 300us is set as
+	 * PA_HIBERN8TIME if UFS_DEVICE_QUIRK_PA_HIBER8TIME quirk is enabled
+	 */
+	if (pa_hibern8time_quirk_enabled)
+		tuned_pa_hibern8time = 3; /* 3 *100us =300us */
+
 	ret = ufshcd_dme_set(hba, UIC_ARG_MIB(PA_HIBERN8TIME),
 			     tuned_pa_hibern8time);
 out:
@@ -8199,9 +8204,8 @@ static void ufshcd_tune_unipro_params(struct ufs_hba *hba)
 {
 	if (ufshcd_is_unipro_pa_params_tuning_req(hba)) {
 		ufshcd_tune_pa_tactivate(hba);
-		ufshcd_tune_pa_hibern8time(hba);
 	}
-
+	ufshcd_tune_pa_hibern8time(hba);
 	if (hba->dev_quirks & UFS_DEVICE_QUIRK_PA_TACTIVATE) {
 		/* set timeout for PA_TACTIVATE by vender */
 		if (hba->card->wmanufacturerid == UFS_VENDOR_SAMSUNG)
@@ -8256,6 +8260,11 @@ static void ufshcd_init_desc_sizes(struct ufs_hba *hba)
 		&hba->desc_size.geom_desc);
 	if (err)
 		hba->desc_size.geom_desc = QUERY_DESC_GEOMETRY_DEF_SIZE;
+
+	err = ufshcd_read_desc_length(hba, QUERY_DESC_IDN_HEALTH, 0,
+		&hba->desc_size.health_desc);
+	if (err)
+		hba->desc_size.health_desc = QUERY_DESC_HEALTH_MAX_SIZE;
 }
 
 static void ufshcd_def_desc_sizes(struct ufs_hba *hba)
@@ -8427,8 +8436,7 @@ _link_retry:
 
 #if defined(CONFIG_UFSFEATURE)
 		ufsf_device_check(hba);
-		ufsf_hpb_init(&hba->ufsf);
-		ufsf_tw_init(&hba->ufsf);
+		ufsf_init(&hba->ufsf);
 #endif
 		scsi_scan_host(hba->host);
 
@@ -8462,8 +8470,7 @@ out:
 	}
 
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_reset(&hba->ufsf);
-	ufsf_tw_reset(&hba->ufsf);
+	ufsf_reset(&hba->ufsf);
 #endif
 
 	trace_ufshcd_init(dev_name(hba->dev), ret,
@@ -8482,9 +8489,6 @@ static void ufshcd_async_scan(void *data, async_cookie_t cookie)
 	struct ufs_hba *hba = (struct ufs_hba *)data;
 
 	ufshcd_probe_hba(hba);
-#if defined(CONFIG_CLD)
-	ufscld_init(hba);
-#endif
 }
 
 /**
@@ -9362,8 +9366,7 @@ static int ufshcd_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	}
 
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_suspend(&hba->ufsf);
-	ufsf_tw_suspend(&hba->ufsf);
+	ufsf_suspend(&hba->ufsf);
 #endif
 
 #if defined(CONFIG_SCSI_SKHPB)
@@ -9418,16 +9421,6 @@ static int ufshcd_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 			ufshcd_disable_auto_bkops(hba);
 		}
 	}
-
-#if defined(CONFIG_UFSFEATURE) && defined(CONFIG_UFSTW)
-#ifndef CONFIG_FACTORY_BUILD
-	if (ufstw_need_flush(&hba->ufsf)) {
-		//ret = -EAGAIN;
-		pm_runtime_mark_last_busy(hba->dev);
-		goto enable_gating;
-	}
-#endif
-#endif
 
 	/* MTK PATCH */
 	ret = ufshcd_check_hibern8_exit(hba);
@@ -9542,8 +9535,7 @@ enable_gating:
 		ufshcd_resume_clkscaling(hba);
 	hba->clk_gating.is_suspended = false;
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_resume(&hba->ufsf);
-	ufsf_tw_resume(&hba->ufsf);
+	ufsf_resume(&hba->ufsf);
 #endif
 	ufshcd_release(hba);
 	ufshcd_crypto_resume(hba, pm_op);
@@ -9672,8 +9664,7 @@ static int ufshcd_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		ufshcd_resume_clkscaling(hba);
 
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_resume(&hba->ufsf);
-	ufsf_tw_resume(&hba->ufsf);
+	ufsf_resume(&hba->ufsf);
 #endif
 #if defined(CONFIG_SCSI_SKHPB)
 	skhpb_resume(hba);
@@ -10068,8 +10059,7 @@ EXPORT_SYMBOL(ufshcd_shutdown);
 void ufshcd_remove(struct ufs_hba *hba)
 {
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_release(&hba->ufsf);
-	ufsf_tw_release(&hba->ufsf);
+	ufsf_remove(&hba->ufsf);
 #endif
 #if defined(CONFIG_SCSI_SKHPB)
 	if (hba->card && hba->card->wmanufacturerid == UFS_VENDOR_SKHYNIX)
@@ -10357,8 +10347,7 @@ int ufshcd_init(struct ufs_hba *hba, void __iomem *mmio_base, unsigned int irq)
 	ufshcd_set_ufs_dev_active(hba);
 
 #if defined(CONFIG_UFSFEATURE)
-	ufsf_hpb_set_init_state(&hba->ufsf);
-	ufsf_tw_set_init_state(&hba->ufsf);
+	ufsf_set_init_state(&hba->ufsf);
 #endif
 
 #if defined(CONFIG_SCSI_SKHPB)

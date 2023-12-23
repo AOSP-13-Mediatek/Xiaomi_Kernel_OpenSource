@@ -112,10 +112,6 @@ static int reviser_memory_func(void *arg)
 	}
 	LOG_INFO("reviser memory init\n");
 
-	/* Workaround for power all on mode*/
-	//reviser_power_on(NULL);
-	//reviser_power_on_cb(NULL);
-
 	return 0;
 }
 
@@ -149,6 +145,10 @@ static void reviser_power_on_cb(void *para)
 	}
 	if (reviser_set_default_iova(g_reviser_device)) {
 		LOG_ERR("Set Default IOVA Fail\n");
+		return;
+	}
+	if (reviser_init_ip()) {
+		LOG_ERR("Init IP Fail\n");
 		return;
 	}
 
@@ -427,7 +427,7 @@ static int reviser_probe(struct platform_device *pdev)
 	apu_power_device_register(REVISER, pdev);
 	/* Workaround for power all on mode*/
 	//reviser_power_on(NULL);
-	//reviser_power_on_cb(NULL);
+
 
 	reviser_device->init_done = true;
 	platform_set_drvdata(pdev, reviser_device);

@@ -44,6 +44,7 @@ int ged_bridge_log_buf_write(
 	struct GED_BRIDGE_IN_LOGBUFWRITE *psLogBufWriteIN,
 	struct GED_BRIDGE_OUT_LOGBUFWRITE *psLogBufWriteOUT)
 {
+	psLogBufWriteIN->acLogBuf[GED_BRIDGE_IN_LOGBUF_SIZE - 1] = '\0';
 	psLogBufWriteOUT->eError =
 		ged_log_buf_print2(psLogBufWriteIN->hLogBuf,
 		psLogBufWriteIN->attrs, "%s", psLogBufWriteIN->acLogBuf);
@@ -236,18 +237,15 @@ int ged_bridge_query_gpu_dvfs_info(
 
 	/* GiFT hint status to GED */
 	if (QueryGPUDVFSInfoIn->hint) {
-		QueryGPUDVFSInfoOut->eError =
-			ged_kpi_set_gift_status(QueryGPUDVFSInfoIn->hint);
+		if (QueryGPUDVFSInfoIn->gift_ratio)
+			QueryGPUDVFSInfoOut->eError =
+				ged_kpi_set_gift_status(QueryGPUDVFSInfoIn->gift_ratio);
+		else
+			QueryGPUDVFSInfoOut->eError =
+				ged_kpi_set_gift_status(QueryGPUDVFSInfoIn->hint);
 	}
-	/* GiFT query gpu_freq info from GED */
-	else {
-		QueryGPUDVFSInfoOut->eError = ged_kpi_query_gpu_dvfs_info(
-			&QueryGPUDVFSInfoOut->gpu_freq_cur,
-			&QueryGPUDVFSInfoOut->gpu_freq_max,
-			&QueryGPUDVFSInfoOut->gpu_freq_dvfs_pred,
-			&QueryGPUDVFSInfoOut->target_fps,
-			&QueryGPUDVFSInfoOut->gpu_time);
-	}
+	QueryGPUDVFSInfoOut->eError = ged_kpi_query_gpu_dvfs_info(
+			QueryGPUDVFSInfoOut);
 	return 0;
 }
 

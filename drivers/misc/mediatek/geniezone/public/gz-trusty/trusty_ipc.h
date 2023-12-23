@@ -54,7 +54,7 @@ struct tipc_dn_chan {
 	struct mutex sess_lock;
 	enum tee_id_t tee_id;
 	int port_id;
-	uint32_t cpumask;
+	int32_t cpumask;
 };
 
 int tipc_set_default_cpumask(uint32_t cpumask);

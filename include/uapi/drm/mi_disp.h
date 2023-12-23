@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #ifndef _MI_DISP_H_
@@ -109,6 +108,17 @@ enum disp_event_type {
     MI_DISP_EVENT_MAX,
 };
 
+enum panel_power_state {
+	/* panel: power on */
+	MI_DISP_POWER_ON   = 0,
+	MI_DISP_POWER_LP1       = 1,
+	MI_DISP_POWER_LP2       = 2,
+	MI_DISP_POWER_STANDBY   = 3,
+	MI_DISP_POWER_SUSPEND   = 4,
+	/* panel: power off */
+	MI_DISP_POWER_POWERDOWN = 5,
+};
+
 struct disp_event_req {
 	struct disp_base base;
 	__u32 type;
@@ -186,11 +196,18 @@ enum crc_mode {
 	CRC_MODE_MAX,
 };
 
+enum gir_mode{
+	GIR_OFF = 0,
+	GIR_ON,
+	GIR_MODE_MAX,
+};
+
 enum spr_render_status {
 	SPR_1D_RENDERING = 1,
 	SPR_2D_RENDERING = 2,
 };
 
+/*DISP_FEATURE_ROUND_MODE = 19 Switch fillet optimization*/
 enum disp_feature_id {
 	DISP_FEATURE_DIMMING,
 	DISP_FEATURE_HBM,
@@ -210,7 +227,13 @@ enum disp_feature_id {
 	DISP_FEATURE_BRIGHTNESS,
 	DISP_FEATURE_LCD_HBM,
 	DISP_FEATURE_GIR,
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
 	DISP_FEATURE_DOZE_STATE,
+#else
+	DISP_FEATURE_BIST_MODE,
+	DISP_FEATURE_BIST_MODE_COLOR,
+	DISP_FEATURE_ROUND_MODE,
+#endif
 	DISP_FEATURE_MAX,
 };
 
@@ -351,10 +374,12 @@ static inline const char *get_disp_feature_id_name(int feature_id)
 		return "brightnress";
 	case DISP_FEATURE_LCD_HBM:
 		return "lcd_hbm";
+#if defined (CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined (CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
 	case DISP_FEATURE_GIR:
 		return "gir";
 	case DISP_FEATURE_DOZE_STATE:
 		return "doze_state";
+#endif
 	default:
 		return "Unknown";
 	}
@@ -483,7 +508,13 @@ static inline const char *getDispFeatureIdName(int feature_id)
 #define MI_DISP_IOCTL_WRITE_DSI_CMD                 _IOW('D', 0x09, struct disp_dsi_cmd_req)
 #define MI_DISP_IOCTL_READ_DSI_CMD                 _IOWR('D', 0x0A, struct disp_dsi_cmd_req)
 #define MI_DISP_IOCTL_GET_BRIGHTNESS                _IOR('D', 0x0B, struct disp_brightness_req)
+
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+#define MI_DISP_IOCTL_SET_BRIGHTNESS                _IOW('D', 0x0C, struct disp_brightness_req)
+#endif
+#if defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) || defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
 #define MI_DISP_IOCTL_SET_BRIGHTNESS                _IOR('D', 0x0C, struct disp_brightness_req)
+#endif
 
 #if defined(__cplusplus)
 }

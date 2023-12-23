@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1370,7 +1369,7 @@ static void mtkts_btsquiet_start_thermal_timer(void)
 }
 #endif
 
-static const char *thermistor_name;
+const char *thermistor_name;
 static char thermal_zone_name[20];
 static char *p_thermal_zone_name=NULL;
 static int of_parse_thermistor(struct platform_device *pdev)
@@ -1386,16 +1385,17 @@ static int mtkts_btsquiet_register_thermal(void)
 {
 	mtkts_btsquiet_dprintk("[%s]\n", __func__);
 
-	/*if(p_thermal_zone_name){
+	if(p_thermal_zone_name){
+	/* trips : trip 0~1 */
 	thz_dev = mtk_thermal_zone_device_register(p_thermal_zone_name, num_trip,
 					NULL, &mtkts_btsquiet_dev_ops, 0, 0, 0,
 					interval * 1000);
-	}else { */
+	}else {
 		/* trips : trip 0~1 */
 		thz_dev = mtk_thermal_zone_device_register("quiet_therm", num_trip,
 					NULL, &mtkts_btsquiet_dev_ops, 0, 0, 0,
 					interval * 1000);
-	//}
+	}
 	return 0;
 }
 

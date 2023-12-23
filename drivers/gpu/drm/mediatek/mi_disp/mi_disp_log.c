@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #define pr_fmt(fmt) "mi_disp_log:[%s:%d] " fmt, __func__, __LINE__
@@ -639,3 +638,4 @@ void mi_disp_log_exit(void)
 	kfree(g_disp_log);
 	g_disp_log = NULL;
 }
+

@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 # Copyright (c) 2019 MediaTek Inc.
-# Copyright (C) 2021 XiaoMi, Inc.
 #
 
 ifeq ($(CONFIG_MACH_MT6833),y)
@@ -10,6 +9,8 @@ else ifeq ($(CONFIG_MACH_MT6893),y)
 	PDIR = mt6893
 else ifeq ($(CONFIG_MACH_MT6877),y)
 	PDIR = mt6877
+else ifeq ($(CONFIG_MACH_MT6781),y)
+	PDIR = mt6781
 else
 	PDIR = $(MTK_PLATFORM)
 endif
@@ -34,7 +35,11 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/dfrc/
 ifeq ($(CONFIG_MTK_TINYSYS_SSPM_SUPPORT),y)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/v1
+ifeq ($(CONFIG_MACH_MT6781),y)
+ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/$(PDIR)
+else
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/sspm/$(MTK_PLATFORM)
+endif
 ifeq ($(CONFIG_MACH_MT6877),y)
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/mcupm/$(MTK_PLATFORM)
 else
@@ -42,6 +47,7 @@ ccflags-y  += -I$(srctree)/drivers/misc/mediatek/mcupm/$(PDIR)
 endif
 endif
 ifeq ($(CONFIG_MTK_APUSYS_SUPPORT),y)
+ccflags-${CONFIG_MACH_MT6893} += -I$(srctree)/drivers/misc/mediatek/apusys/power/2.0/mt6893/
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/apusys/power/2.0/$(MTK_PLATFORM)
 else
 ccflags-y  += -I$(srctree)/drivers/misc/mediatek/vpu/$(PDIR)
@@ -218,9 +224,7 @@ obj-$(CONFIG_THERMAL) += mtk_cooler_sysrst.o
 obj-$(CONFIG_THERMAL) += mtk_cooler_VR_FPS.o
 endif
 
-
-ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6885" "mt6873" "mt6893" ))
-
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6885" "mt6873"))
 ifeq ($(CONFIG_MTK_THERMAL_PA_VIA_ATCMD),y)
     obj-$(CONFIG_THERMAL) += mtk_cooler_mutt_gen97.o
 endif
@@ -242,6 +246,33 @@ obj-$(CONFIG_THERMAL) += mtk_cooler_dtm.o
 obj-$(CONFIG_THERMAL) += mtk_cooler_sysrst.o
 #obj-$(CONFIG_THERMAL) += mtk_cooler_NR.o
 obj-$(CONFIG_THERMAL) += mtk_cooler_VR_FPS.o
+endif
+
+ifneq (,$(filter $(CONFIG_MTK_PLATFORM), "mt6893"))
+#obj-$(CONFIG_THERMAL) += mtk_cooler_fps.o
+ifeq ($(CONFIG_MTK_PUMP_EXPRESS_PLUS_30_SUPPORT),y)
+	#obj-$(CONFIG_THERMAL) += mtk_cooler_bcct_v1.o
+else
+	ifeq ($(CONFIG_MTK_GAUGE_VERSION),30)
+		#obj-$(CONFIG_THERMAL) += mtk_cooler_bcct_v1.o
+		ifeq ($(CONFIG_MTK_DUAL_CHARGER_SUPPORT),y)
+			#obj-$(CONFIG_THERMAL) += mtk_cooler_bcct_2nd.o
+		endif
+	else
+		#obj-$(CONFIG_THERMAL) += mtk_cooler_bcct.o
+	endif
+endif
+
+obj-$(CONFIG_THERMAL) += mtk_cooler_atm.o
+obj-$(CONFIG_THERMAL) += mtk_cooler_gpu_cus.o
+obj-$(CONFIG_THERMAL) += mtk_cooler_char_curr_cus.o
+obj-$(CONFIG_THERMAL) += mtk_cooler_mutt_gen97.o
+obj-$(CONFIG_THERMAL) += mtk_cooler_md_cus.o
+
+obj-$(CONFIG_THERMAL) += mtk_cooler_dtm.o
+obj-$(CONFIG_THERMAL) += mtk_cooler_sysrst.o
+#obj-$(CONFIG_THERMAL) += mtk_cooler_NR.o
+#obj-$(CONFIG_THERMAL) += mtk_cooler_VR_FPS.o
 endif
 
 $(warning 3 liaoye $(CONFIG_MTK_PLATFORM))
@@ -272,4 +303,3 @@ obj-$(CONFIG_THERMAL) += mtk_cooler_sysrst.o
 #obj-$(CONFIG_THERMAL) += mtk_cooler_NR.o
 #obj-$(CONFIG_THERMAL) += mtk_cooler_VR_FPS.o
 endif
-

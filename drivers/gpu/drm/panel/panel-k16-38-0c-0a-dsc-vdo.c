@@ -26,6 +26,7 @@ copyright (c) 2015 MediaTek Inc.
 
 #include <linux/module.h>
 #include <linux/of_platform.h>
+#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 
 #define CONFIG_MTK_PANEL_EXT
@@ -38,6 +39,8 @@ copyright (c) 2015 MediaTek Inc.
 #ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 #include "../mediatek/mtk_corner_pattern/mtk_data_hw_roundedpattern_k16.h"
 #endif
+
+#include "../mediatek/mi_disp/mi_dsi_panel_count.h"
 
 #define ARRAYSIZE(x) (sizeof(x) / sizeof(x[0]))
 #define DATA_RATE               1100
@@ -69,26 +72,6 @@ copyright (c) 2015 MediaTek Inc.
 
 /* option function to read data from some panel address */
 /* #define PANEL_SUPPORT_READBACK */
-
-struct lcm {
-	struct device *dev;
-	struct drm_panel panel;
-	struct backlight_device *backlight;
-	struct gpio_desc *reset_gpio;
-	struct gpio_desc *vddi_enable;
-
-	bool prepared;
-	bool enabled;
-	bool hbm_en;
-
-	int error;
-	const char *panel_info;
-	u32 doze_brightness_state;
-
-	u32 max_brightness_clone;
-	struct mutex panel_lock;
-	int bl_max_level;
-};
 
 static char bl_tb0[] = {0x51, 0x3, 0xff};
 static struct mtk_ddic_dsi_msg cmd_msg = {0};
@@ -326,6 +309,15 @@ static void lcm_panel_init(struct lcm *ctx)
 	lcm_dcs_write_seq_static(ctx, 0xB2, 0x30); // Dimming On
 	lcm_dcs_write_seq_static(ctx, 0xF7, 0x0B);
 
+	/* ESD Setting */
+	lcm_dcs_write_seq_static(ctx, 0xFC, 0x5A, 0x5A);
+	lcm_dcs_write_seq_static(ctx, 0xE1, 0x9B);
+	lcm_dcs_write_seq_static(ctx, 0xB0, 0x00, 0x05, 0xE1);
+	lcm_dcs_write_seq_static(ctx, 0xE1, 0xF9, 0xFC);
+	lcm_dcs_write_seq_static(ctx, 0xED, 0x01, 0x01);
+	lcm_dcs_write_seq_static(ctx, 0xB0, 0x00, 0x06, 0xF4);
+	lcm_dcs_write_seq_static(ctx, 0xF4, 0x1F);
+
 	/* Level2 Access Disable */
 	lcm_dcs_write_seq_static(ctx, 0xF0, 0xA5, 0xA5);
 	lcm_dcs_write_seq_static(ctx, 0xFC, 0xA5, 0xA5);
@@ -384,6 +376,16 @@ static int lcm_unprepare(struct drm_panel *panel)
 
 	ctx->error = 0;
 	ctx->prepared = false;
+	panel->panel_initialized = false;
+
+	/* add for display fps cpunt */
+	dsi_panel_fps_count(ctx, 0, 0);
+	/* add for display state count*/
+	if (ctx->mi_count.panel_active_count_enable)
+		dsi_panel_state_count(ctx, 0);
+	/* add for display hbm count */
+	dsi_panel_HBM_count(ctx, 0, 1);
+
 	pr_info("%s-\n", __func__);
 
 	return 0;
@@ -409,10 +411,18 @@ static int lcm_prepare(struct drm_panel *panel)
 		lcm_unprepare(panel);
 
 	ctx->prepared = true;
+	panel->panel_initialized = true;
 
 #ifdef PANEL_SUPPORT_READBACK
 	lcm_panel_get_data(ctx);
 #endif
+
+	/* add for display fps cpunt */
+	dsi_panel_fps_count(ctx, 0, 1);
+	/* add for display state count*/
+	if (!ctx->mi_count.panel_active_count_enable)
+		dsi_panel_state_count(ctx, 1);
+
 	pr_info("%s-\n", __func__);
 
 	return ret;
@@ -463,8 +473,8 @@ static const struct drm_display_mode performance_mode = {
 
 #if defined(CONFIG_MTK_PANEL_EXT)
 static struct mtk_panel_params ext_params = {
-	.cust_esd_check = 0,
 	.esd_check_enable = 0,
+	.mi_esd_check_enable = 1,
 	.lcm_color_mode = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	.physical_width_um = 69500,
 	.physical_height_um = 154600,
@@ -526,8 +536,8 @@ static struct mtk_panel_params ext_params = {
 };
 
 static struct mtk_panel_params ext_params_120hz = {
-	.cust_esd_check = 0,
 	.esd_check_enable = 0,
+	.mi_esd_check_enable = 1,
 	.lcm_color_mode = MTK_DRM_COLOR_MODE_DISPLAY_P3,
 	.physical_width_um = 69500,
 	.physical_height_um = 154600,
@@ -606,6 +616,7 @@ static int panel_get_panel_info(struct drm_panel *panel, char *buf)
 
 static int lcm_setbacklight_control(struct drm_panel *panel, unsigned int level)
 {
+	struct lcm *ctx = panel_to_lcm(panel);
 	char bl_tb[] = {0x51, 0x07, 0xff};
 	int ret = 0;
 
@@ -613,6 +624,8 @@ static int lcm_setbacklight_control(struct drm_panel *panel, unsigned int level)
 		pr_err("%s, the connector is null\n", __func__);
 		return -1;
 	}
+
+	dsi_panel_backlight_count(ctx, level);
 
 	if (level >= 8) {
 		bl_tb0[1] = (level >> 8) & 0xFF;
@@ -791,6 +804,12 @@ static int panel_hbm_fod_control(struct drm_panel *panel, bool en)
 
 done:
 	vfree(cmd_msg);
+	/* add for display hbm count */
+	if (en)
+		dsi_panel_HBM_count(ctx, 1, 0);
+	else
+		dsi_panel_HBM_count(ctx, 0, 0);
+
 	pr_info("%s end -\n", __func__);
 	return ret;
 }
@@ -1152,6 +1171,17 @@ done:
 	pr_info("%s end -\n", __func__);
 }
 
+static void lcm_esd_restore_backlight(struct drm_panel *panel)
+{
+	struct lcm *ctx = panel_to_lcm(panel);
+
+	lcm_dcs_write(ctx, bl_tb0, ARRAY_SIZE(bl_tb0));
+
+	pr_info("%s high_bl = 0x%x, low_bl = 0x%x \n", __func__, bl_tb0[1], bl_tb0[2]);
+
+	return;
+}
+
 static int panel_set_doze_brightness(struct drm_panel *panel, int doze_brightness)
 {
 	struct lcm *ctx;
@@ -1247,6 +1277,7 @@ static struct mtk_panel_funcs ext_funcs = {
 	.hbm_fod_control = panel_hbm_fod_control,
 	.set_doze_brightness = panel_set_doze_brightness,
 	.get_doze_brightness = panel_get_doze_brightness,
+	.esd_restore_backlight = lcm_esd_restore_backlight,
 };
 #endif
 
@@ -1370,6 +1401,20 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	}
 	devm_gpiod_put(dev, ctx->vddi_enable);
 
+	ext_params.err_flag_irq_gpio = of_get_named_gpio_flags(
+			dev->of_node, "mi,esd-err-irq-gpio",
+			0, (enum of_gpio_flags *)&(ext_params.err_flag_irq_flags));
+
+	ext_params_120hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+	ext_params_120hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+
+	ext_params.err_flag_irq_gpio = of_get_named_gpio_flags(
+			dev->of_node, "mi,esd-err-irq-gpio",
+			0, (enum of_gpio_flags *)&(ext_params.err_flag_irq_flags));
+
+	ext_params_120hz.err_flag_irq_gpio = ext_params.err_flag_irq_gpio;
+	ext_params_120hz.err_flag_irq_flags = ext_params.err_flag_irq_flags;
+
 	ctx->prepared = true;
 	ctx->enabled = true;
 
@@ -1378,6 +1423,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 	ctx->panel.funcs = &lcm_drm_funcs;
 	ctx->panel_info = panel_name;
 	ctx->doze_brightness_state = DOZE_TO_NORMAL;
+	ctx->panel.panel_initialized = true;
 
 	ret = drm_panel_add(&ctx->panel);
 	if (ret < 0)
@@ -1393,6 +1439,7 @@ static int lcm_probe(struct mipi_dsi_device *dsi)
 		return ret;
 #endif
 
+	dsi_panel_count_init(ctx);
 	pr_info("%s %s-\n", __func__, panel_name);
 
 	return ret;
@@ -1428,3 +1475,4 @@ static struct mipi_dsi_driver lcm_driver = {
 };
 
 module_mipi_dsi_driver(lcm_driver);
+

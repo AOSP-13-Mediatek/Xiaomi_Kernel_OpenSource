@@ -1,5 +1,4 @@
 
-
 //NFCC for Mediateckstart
 &i2c3 {
     status = "okay";
@@ -12,10 +11,8 @@
         qcom,nq-ven         = <&pio 8 0x0>;
         qcom,nq-firm        = <&pio 10 0x0>;
         qcom,nq-clkreq      = <&pio 115 0x0>;
-
         interrupt-names = "nfc_irq";
         pinctrl-names   = "default", "nfc_active", "nfc_suspend";
-
         pinctrl-0 = <&nfc_default>;
         pinctrl-1 = <&nfc_int_active &nfc_enable_active
                     &nfc_clk_req_active &nfc_firmwaredownload_active>;
@@ -23,7 +20,6 @@
                     &nfc_clk_req_suspend &nfc_firmwaredownload_suspend>;
     };
 };
-
 &pio {
     nfc_default: nfc_default {
     };
@@ -43,7 +39,6 @@
             bias-pull-up;
         };
     };
-
     nfc_enable_active: nfc_enable_active {
         pins_cmd_dat {
             pinmux = <PINMUX_GPIO8__FUNC_GPIO8>;
@@ -61,7 +56,6 @@
             bias-disable;
         };
     };
-
     nfc_firmwaredownload_active: nfc_firmwaredownload_active {
         pins_cmd_dat {
             pinmux = <PINMUX_GPIO10__FUNC_GPIO10>;
@@ -78,7 +72,6 @@
             bias-disable;
         };
     };
-
     nfc_clk_req_active: nfc_clk_req_active {
         pins_cmd_dat {
             pinmux = <PINMUX_GPIO115__FUNC_SRCLKENAI0>;
@@ -99,7 +92,6 @@
     };
 };
 //NFCC end 
-
 /* eSE SPI configuration */
 &spi1 {
     #address-cells = <1>;
@@ -113,7 +105,6 @@
         pinctrl-0 = <&nxp_ese_spi_mode>;
     };
 };
-
 &pio {
     nxp_ese_spi_mode: nxp_ese_spi_mode {
         pins_cmd_dat {
@@ -126,3 +117,4 @@
     };
 };
 /* eSE SPI configuration -- end */
+

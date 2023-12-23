@@ -415,6 +415,18 @@ static s32 *read_spm_pwr_status_array(void)
 	return clkdbg_ops->get_spm_pwr_status_array();
 }
 
+static bool clk_hw_pwr_sta_is_on(struct clk_hw *c_hw,
+			u32 spm_pwr_status, struct provider_clk *pvdck)
+{
+	if (!pvdck || !pvdck->pwr_mask)
+		return 0;
+
+	if ((spm_pwr_status & pvdck->pwr_mask) != pvdck->pwr_mask)
+		return false;
+
+	return clk_hw_is_on(c_hw);
+}
+
 static int clk_hw_pwr_is_on(struct clk_hw *c_hw, u32 *spm_pwr_status,
 		struct provider_clk *pvdck)
 {
@@ -449,10 +461,13 @@ static int clk_hw_pwr_is_on(struct clk_hw *c_hw, u32 *spm_pwr_status,
 	return clk_hw_is_on(c_hw);
 }
 
-static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 *spm_pwr_status)
+static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 *spm_pwr_status, int array_size)
 {
 	struct clk *c = pvdck->ck;
 	struct clk_hw *c_hw = __clk_get_hw(c);
+
+	if (array_size == 1)
+		return clk_hw_pwr_sta_is_on(c_hw, spm_pwr_status, pvdck);
 
 	return clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck);
 }
@@ -469,9 +484,9 @@ static bool pvdck_is_on(struct provider_clk *pvdck)
 		pval = read_spm_pwr_status_array();
 		if (IS_ERR_OR_NULL(pval)) {
 			val = read_spm_pwr_status();
-			return pvdck_pwr_is_on(pvdck, &val);
+			return pvdck_pwr_is_on(pvdck, &val, 1);
 		} else
-			return pvdck_pwr_is_on(pvdck, pval);
+			return pvdck_pwr_is_on(pvdck, pval, 2);
 	}
 
 	val = clkdbg_ops->is_pwr_on(pvdck);
@@ -528,7 +543,7 @@ static const char *get_provider_name(struct device_node *node, u32 *cells)
 {
 	const char *name;
 	const char *p;
-	u32 cc;
+	u32 cc = 0;
 
 	if (of_property_read_u32(node, "#clock-cells", &cc) != 0)
 		cc = 0;
@@ -2177,10 +2192,12 @@ void set_custom_cmds(const struct cmd_fn *cmds)
 static int clkdbg_cmds(struct seq_file *s, void *v);
 
 static const struct cmd_fn common_cmds[] = {
+#if !defined(CONFIG_MACH_MT6781)
 	CMDFN("dump_regs", seq_print_regs),
 	CMDFN("dump_regs2", clkdbg_dump_regs2),
-	CMDFN("dump_state", clkdbg_dump_state_all),
 	CMDFN("dump_clks", clkdbg_dump_provider_clks),
+#endif
+	CMDFN("dump_state", clkdbg_dump_state_all),
 	CMDFN("dump_muxes", clkdbg_dump_muxes),
 	CMDFN("fmeter", seq_print_fmeter_all),
 	CMDFN("pwr_status", clkdbg_pwr_status),

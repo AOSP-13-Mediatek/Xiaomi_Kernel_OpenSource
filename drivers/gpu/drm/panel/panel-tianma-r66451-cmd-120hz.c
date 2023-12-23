@@ -374,6 +374,11 @@ static struct mtk_panel_params ext_params = {
 		.data_rate = MODE_0_DATA_RATE,
 	},
 	.data_rate = MODE_2_DATA_RATE,
+	.dyn = {
+		.switch_en = 1,
+		.data_rate = MODE_0_DATA_RATE + 10,
+	},
+
 };
 static struct mtk_panel_params ext_params_mode_1 = {
 	.cust_esd_check = 0,
@@ -425,6 +430,10 @@ static struct mtk_panel_params ext_params_mode_1 = {
 		.data_rate = MODE_1_DATA_RATE,
 	},
 	.data_rate = MODE_2_DATA_RATE,
+	.dyn = {
+		.switch_en = 1,
+		.data_rate = MODE_1_DATA_RATE + 10,
+	},
 };
 
 static struct mtk_panel_params ext_params_mode_2 = {
@@ -477,6 +486,10 @@ static struct mtk_panel_params ext_params_mode_2 = {
 		.data_rate = MODE_2_DATA_RATE,
 	},
 	.data_rate = MODE_2_DATA_RATE,
+	.dyn = {
+		.switch_en = 1,
+		.data_rate = MODE_2_DATA_RATE + 10,
+	},
 };
 
 static int tianma_setbacklight_cmdq(void *dsi, dcs_write_gce cb,
@@ -507,6 +520,7 @@ struct drm_display_mode *get_mode_by_id(struct drm_panel *panel,
 			return m;
 		i++;
 	}
+	pr_info("%s, %d, failed to get mode:%d, total:%u\n", __func__, __LINE__, mode, i);
 	return NULL;
 }
 
@@ -732,13 +746,6 @@ static void mode_switch_to_60(struct drm_panel *panel,
 		tianma_dcs_write_seq_static(ctx, 0xE4, 0x33, 0xB4, 0x00,
 			0x00, 0x00, 0x75, 0x04, 0x00, 0x00);
 		tianma_dcs_write_seq_static(ctx, 0xE6, 0x01);
-
-		// tianma_dcs_write_seq_static(ctx, 0xD4, 0x93, 0x93, 0x60,
-			// 0x1E, 0xE1, 0x02, 0x08, 0x00, 0x00, 0x02, 0x22,
-			// 0x02, 0xEC, 0x03, 0x83, 0x04, 0x00, 0x04, 0x00,
-			// 0x04, 0x00, 0x04, 0x00, 0x04, 0x00, 0x01, 0x00,
-			// 0x01, 0x00);
-
 	}
 }
 
@@ -747,9 +754,11 @@ static int mode_switch(struct drm_panel *panel, unsigned int cur_mode,
 {
 	int ret = 0;
 	struct drm_display_mode *m = get_mode_by_id(panel, dst_mode);
-
 	if (cur_mode == dst_mode)
 		return ret;
+
+	if (m == NULL)
+		return -EINVAL;
 
 	if (m->vrefresh == MODE_0_FPS) { /*switch to 60 */
 		mode_switch_to_60(panel, stage);

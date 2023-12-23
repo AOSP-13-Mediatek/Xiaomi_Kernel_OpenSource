@@ -854,7 +854,7 @@ static int ilitek_tddi_fw_flash_erase(bool mcu)
 
 	if (!ice) {
 		if (ili_ice_mode_ctrl(ENABLE, mcu) < 0)
-        	ILI_ERR("Enable ice mode failed while erasing flash\n");
+			ILI_ERR("Enable ice mode failed while erasing flash\n");
 	}
 
 	for (i = 0; i < FW_BLOCK_INFO_NUM; i++) {
@@ -912,7 +912,7 @@ static int ilitek_tddi_fw_flash_erase(bool mcu)
 	}
 	if (!ice) {
 		if (ili_ice_mode_ctrl(DISABLE, mcu) < 0)
-        	ILI_ERR("Disable ice mode failed after erase flash\n");
+			ILI_ERR("Disable ice mode failed after erase flash\n");
 	}
 	return UPDATE_PASS;
 }

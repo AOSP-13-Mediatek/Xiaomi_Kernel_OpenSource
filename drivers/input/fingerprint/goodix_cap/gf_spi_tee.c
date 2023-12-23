@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2013-2016, Shenzhen Huiding Technology Co., Ltd.
- * Copyright (C) 2021 XiaoMi, Inc.
  * All Rights Reserved.
  */
 
@@ -22,7 +21,6 @@
 #include "tee_client_api.h"
 
 //#define GOODIX_DRM_INTERFACE_WA
-
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #else
@@ -352,6 +350,7 @@ static int gf_get_gpio_dts_info(struct gf_device *gf_dev)
 	else {
 		pinctrl_select_state(gf_dev->pinctrl_gpios, gf_dev->pins_spi_cs);
 	}
+
 
 	gf_debug(DEBUG_LOG, "%s, get pinctrl success!\n", __func__);
 
@@ -1012,12 +1011,13 @@ static long gf_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			input_sync(gf_dev->input);
 		}
 
-		if (GF_KEY_HOME == gf_key.key|| GF_KEY_HOME_DOUBLE_CLICK == gf_key.key) {
+		if (GF_KEY_HOME == gf_key.key || GF_KEY_HOME_DOUBLE_CLICK == gf_key.key) {
 			gf_debug(INFO_LOG, "input report key event single or double click");
 			input_report_key(gf_dev->input, key_input,
 					 gf_key.value);
 			input_sync(gf_dev->input);
 		}
+
 		break;
 
 	case GF_IOC_NAV_EVENT:
@@ -2203,7 +2203,13 @@ static int gf_probe(struct spi_device *spi)
 		gf_debug(INFO_LOG, "regulator_get fail");
 		goto err_freqbuff;
 	}
+
+#ifdef CONFIG_GOODIX_K16_SENSOR
 	status = regulator_set_voltage(buck, 3000000, 3000000);
+#else
+	status = regulator_set_voltage(buck, 3300000, 3300000);
+#endif
+
 	if (status < 0) {
 		gf_debug(INFO_LOG, "regulator_set fail");
 		goto err_freqbuff;
@@ -2267,13 +2273,6 @@ static int gf_probe(struct spi_device *spi)
 			pr_err("%s cannot find the sensor,now exit\n",
 			       __func__);
 			spi_fingerprint = spi;
-			pr_err("%s start to release the GOODIX power...\n",
-			       __func__);
-			status = regulator_disable(buck);
-			if (status < 0) {
-				gf_debug(ERR_LOG, "%s, regulator_disable fail!\n", __func__);
-			}
-			regulator_put(buck);
 			gf_hw_power_enable(gf_dev, 0);
 			gf_spi_clk_enable(gf_dev, 0);
 			kfree(gf_dev->spi_buffer);
@@ -2479,7 +2478,6 @@ err_fw:
 #endif
 //err_readid:
 	pr_err("%s cannot find the sensor,now exit\n", __func__);
-	regulator_put(buck);
 	gf_hw_power_enable(gf_dev, 0);
 	gf_spi_clk_enable(gf_dev, 0);
 	kfree(gf_dev->spi_buffer);

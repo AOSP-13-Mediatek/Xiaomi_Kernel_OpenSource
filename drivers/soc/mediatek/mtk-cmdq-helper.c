@@ -87,7 +87,6 @@ struct cmdq_flush_item {
 	cmdq_async_flush_cb err_cb;
 	void *err_data;
 	s32 err;
-	bool done;
 };
 
 static s8 cmdq_subsys_base_to_id(struct cmdq_base *clt_base, u32 base)
@@ -125,7 +124,8 @@ EXPORT_SYMBOL(cmdq_subsys_id_to_base);
 int cmdq_pkt_realloc_cmd_buffer(struct cmdq_pkt *pkt, size_t size)
 {
 	while (pkt->buf_size < size)
-		cmdq_pkt_add_cmd_buffer(pkt);
+		if (cmdq_pkt_add_cmd_buffer(pkt) < 0)
+			return -ENOMEM;
 	return 0;
 }
 EXPORT_SYMBOL(cmdq_pkt_realloc_cmd_buffer);
@@ -177,7 +177,7 @@ struct cmdq_client *cmdq_mbox_create(struct device *dev, int index)
 	client->client.tx_block = false;
 	client->chan = mbox_request_channel(&client->client, index);
 	if (IS_ERR(client->chan)) {
-		cmdq_err("channel request fail:%d, idx:%d",
+		cmdq_err("channel request fail:%ld, idx:%d",
 			PTR_ERR(client->chan), index);
 		dump_stack();
 		kfree(client);
@@ -430,7 +430,7 @@ void cmdq_pkt_free_buf(struct cmdq_pkt *pkt)
 					buf->va_base, buf->pa_base,
 					pkt->cur_pool.cnt);
 			else {
-				cmdq_err("free pool:%s dev:%#lx pa:%pa cl:%#lx",
+				cmdq_err("free pool:%s dev:%#lx pa:%pa cl:%p",
 					buf->use_pool ? "true" : "false",
 					(unsigned long)pkt->dev,
 					&buf->pa_base,
@@ -1077,6 +1077,8 @@ s32 cmdq_pkt_sleep(struct cmdq_pkt *pkt, u32 tick, u16 reg_gpr)
 	struct cmdq_operand lop, rop;
 	const u32 timeout_en = cmdq_mbox_get_base_pa(cl->chan) +
 		CMDQ_TPR_TIMEOUT_EN;
+	u32 end_addr_mark;
+	u64 *inst;
 
 	/* set target gpr value to max to avoid event trigger
 	 * before new value write to gpr
@@ -1098,6 +1100,7 @@ s32 cmdq_pkt_sleep(struct cmdq_pkt *pkt, u32 tick, u16 reg_gpr)
 	cmdq_pkt_read(pkt, NULL, timeout_en, CMDQ_SPR_FOR_TEMP);
 	cmdq_pkt_clear_event(pkt, event);
 
+	cmdq_pkt_poll_gpr_check(pkt, reg_gpr, 0);
 	if (tick < U16_MAX) {
 		lop.reg = true;
 		lop.idx = CMDQ_TPR_ID;
@@ -1114,7 +1117,31 @@ s32 cmdq_pkt_sleep(struct cmdq_pkt *pkt, u32 tick, u16 reg_gpr)
 		cmdq_pkt_logic_command(pkt, CMDQ_LOGIC_ADD,
 			CMDQ_GPR_CNT_ID + reg_gpr, &lop, &rop);
 	}
+	cmdq_pkt_poll_gpr_check(pkt, reg_gpr, 16);
+	cmdq_pkt_assign_command(pkt, CMDQ_SPR_FOR_TEMP, 0);
+	end_addr_mark = pkt->cmd_buf_size - 8;
+
+	lop.reg = true;
+	lop.idx = CMDQ_TPR_ID;
+	rop.reg = true;
+	rop.idx = CMDQ_GPR_CNT_ID + reg_gpr;
+	cmdq_pkt_cond_jump_abs(pkt, CMDQ_SPR_FOR_TEMP, &lop, &rop,
+		CMDQ_GREATER_THAN_AND_EQUAL);
+
+	cmdq_pkt_assign_command(pkt, CMDQ_CPR_SLP_GPR_MAX, 0xFFFFFF00);
+	lop.reg = true;
+	lop.idx = CMDQ_GPR_CNT_ID + reg_gpr;
+	rop.reg = true;
+	rop.idx = CMDQ_CPR_SLP_GPR_MAX;
+	cmdq_pkt_cond_jump_abs(pkt, CMDQ_SPR_FOR_TEMP, &lop, &rop,
+		CMDQ_GREATER_THAN_AND_EQUAL);
+
 	cmdq_pkt_wfe(pkt, event);
+
+	/* read current buffer pa as end mark and fill preview assign */
+	inst = cmdq_pkt_get_va_by_offset(pkt, end_addr_mark);
+	if (inst)
+		*inst |= CMDQ_REG_SHIFT_ADDR(cmdq_pkt_get_curr_buf_pa(pkt));
 
 	lop.reg = true;
 	lop.idx = CMDQ_CPR_TPR_MASK;
@@ -1137,9 +1164,10 @@ s32 cmdq_pkt_poll_timeout(struct cmdq_pkt *pkt, u32 value, u8 subsys,
 	u32 begin_mark, end_addr_mark, cnt_end_addr_mark = 0, shift_pa;
 	dma_addr_t cmd_pa;
 	struct cmdq_operand lop, rop;
-	struct cmdq_instruction *inst;
+	struct cmdq_instruction *inst = NULL;
 	bool absolute = true;
 
+	cmdq_pkt_poll_gpr_check(pkt, reg_gpr, -1);
 	if (pkt->avail_buf_size > PAGE_SIZE)
 		absolute = false;
 
@@ -1242,7 +1270,7 @@ s32 cmdq_pkt_poll_timeout(struct cmdq_pkt *pkt, u32 value, u8 subsys,
 	/* instruction may hit boundary case,
 	 * check if op code is jump and get next instruction if necessary
 	 */
-	if (inst->op == CMDQ_CODE_JUMP)
+	if (inst && inst->op == CMDQ_CODE_JUMP)
 		inst = (struct cmdq_instruction *)cmdq_pkt_get_va_by_offset(
 			pkt, end_addr_mark + CMDQ_INST_SIZE);
 	if (absolute)
@@ -1250,21 +1278,27 @@ s32 cmdq_pkt_poll_timeout(struct cmdq_pkt *pkt, u32 value, u8 subsys,
 	else
 		shift_pa = CMDQ_REG_SHIFT_ADDR(
 			pkt->cmd_buf_size - end_addr_mark - CMDQ_INST_SIZE);
-	inst->arg_b = CMDQ_GET_ARG_B(shift_pa);
-	inst->arg_c = CMDQ_GET_ARG_C(shift_pa);
+	if (inst) {
+		inst->arg_b = CMDQ_GET_ARG_B(shift_pa);
+		inst->arg_c = CMDQ_GET_ARG_C(shift_pa);
+	} else
+		cmdq_err("inst is NULL");
 
 	/* relative case the counter have different offset */
 	if (cnt_end_addr_mark) {
 		inst = (struct cmdq_instruction *)cmdq_pkt_get_va_by_offset(
 			pkt, cnt_end_addr_mark);
-		if (inst->op == CMDQ_CODE_JUMP)
+		if (inst && inst->op == CMDQ_CODE_JUMP)
 			inst = (struct cmdq_instruction *)
 				cmdq_pkt_get_va_by_offset(
 				pkt, end_addr_mark + CMDQ_INST_SIZE);
 		shift_pa = CMDQ_REG_SHIFT_ADDR(
 			pkt->cmd_buf_size - cnt_end_addr_mark - CMDQ_INST_SIZE);
-		inst->arg_b = CMDQ_GET_ARG_B(shift_pa);
-		inst->arg_c = CMDQ_GET_ARG_C(shift_pa);
+		if (inst) {
+			inst->arg_b = CMDQ_GET_ARG_B(shift_pa);
+			inst->arg_c = CMDQ_GET_ARG_C(shift_pa);
+		} else
+			cmdq_err("inst is NULL");
 	}
 
 	return 0;
@@ -1509,8 +1543,13 @@ static void cmdq_pkt_err_irq_dump(struct cmdq_pkt *pkt)
 	const char *mod = "CMDQ";
 	struct cmdq_pkt_buffer *buf;
 	u32 size = pkt->cmd_buf_size, cnt = 0;
-	s32 thread_id = cmdq_mbox_chan_id(client->chan);
+	s32 thread_id;
 	static u8 err_num;
+
+	if (!client->chan)
+		return;
+
+	thread_id = cmdq_mbox_chan_id(client->chan);
 
 	cmdq_msg("%s pkt:%p", __func__, pkt);
 
@@ -1582,7 +1621,6 @@ static void cmdq_flush_async_cb(struct cmdq_cb_data data)
 	if (item->cb)
 		item->cb(user_data);
 	complete(&pkt->cmplt);
-	item->done = true;
 }
 #endif
 
@@ -1596,6 +1634,9 @@ static void cmdq_print_wait_summary(void *chan, dma_addr_t pc,
 	void *base;
 	u32 gprid, val, len;
 
+	if (!chan)
+		return;
+
 	cmdq_buf_print_wfe(text, txt_len, (u32)(pc & 0xFFFF), (void *)inst);
 
 	if (inst->arg_a >= CMDQ_EVENT_GPR_TIMER &&
@@ -1607,7 +1648,7 @@ static void cmdq_print_wait_summary(void *chan, dma_addr_t pc,
 		len = snprintf(text_gpr, ARRAY_SIZE(text_gpr),
 			" GPR R%u:%#x", gprid, val);
 		if (len >= ARRAY_SIZE(text_gpr))
-			cmdq_log("len:%d over text_gpr size:%d",
+			cmdq_log("len:%d over text_gpr size:%lu",
 				len, ARRAY_SIZE(text_gpr));
 	}
 
@@ -2014,7 +2055,7 @@ static void cmdq_buf_print_read(char *text, u32 txt_sz,
 }
 
 static void cmdq_buf_print_write(char *text, u32 txt_sz,
-	u32 offset, struct cmdq_instruction *cmdq_inst)
+	u32 offset, struct cmdq_instruction *cmdq_inst, u16 *spr_cache)
 {
 	u32 addr, len;
 
@@ -2023,14 +2064,28 @@ static void cmdq_buf_print_write(char *text, u32 txt_sz,
 		/* 48bit format case */
 		addr = cmdq_inst->arg_a & 0xfffc;
 
-		len = snprintf(text, txt_sz,
-			"%#06x %#018llx [Write] addr(low) %#06x = %s%#010x%s",
-			offset, *((u64 *)cmdq_inst),
-			addr, CMDQ_REG_IDX_PREFIX(cmdq_inst->arg_b_type),
-			cmdq_inst->arg_b_type ? cmdq_inst->arg_b :
-			CMDQ_GET_32B_VALUE(cmdq_inst->arg_b, cmdq_inst->arg_c),
-			cmdq_inst->op == CMDQ_CODE_WRITE_S_W_MASK ?
-			" with mask" : "");
+		if (cmdq_inst->s_op < 4) {
+			addr = (spr_cache[cmdq_inst->s_op] << 16) | addr;
+			len = snprintf(text, txt_sz,
+				"%#06x %#018llx [Write] addr %#010x = %s%#010x%s",
+				offset, *((u64 *)cmdq_inst), addr,
+				CMDQ_REG_IDX_PREFIX(cmdq_inst->arg_b_type),
+				cmdq_inst->arg_b_type ? cmdq_inst->arg_b :
+				CMDQ_GET_32B_VALUE(cmdq_inst->arg_b,
+					cmdq_inst->arg_c),
+				cmdq_inst->op == CMDQ_CODE_WRITE_S_W_MASK ?
+				" with mask" : "");
+		} else {
+			len = snprintf(text, txt_sz,
+				"%#06x %#018llx [Write] addr(low) %#06x = %s%#010x%s",
+				offset, *((u64 *)cmdq_inst), addr,
+				CMDQ_REG_IDX_PREFIX(cmdq_inst->arg_b_type),
+				cmdq_inst->arg_b_type ? cmdq_inst->arg_b :
+				CMDQ_GET_32B_VALUE(cmdq_inst->arg_b,
+					cmdq_inst->arg_c),
+				cmdq_inst->op == CMDQ_CODE_WRITE_S_W_MASK ?
+				" with mask" : "");
+		}
 	} else {
 		addr = ((u32)(cmdq_inst->arg_a |
 			(cmdq_inst->s_op << CMDQ_SUBSYS_SHIFT)));
@@ -2153,11 +2208,11 @@ static void cmdq_buf_print_move(char *text, u32 txt_sz,
 			"%#06x %#010x [Move ] mask %#018llx",
 			offset, *((u32 *)cmdq_inst), ~val);
 	if (len >= txt_sz)
-		cmdq_log("len:%d over txt_sz:%d", len, txt_sz);
+		cmdq_log("len:%llu over txt_sz:%d", len, txt_sz);
 }
 
 static void cmdq_buf_print_logic(char *text, u32 txt_sz,
-	u32 offset, struct cmdq_instruction *cmdq_inst)
+	u32 offset, struct cmdq_instruction *cmdq_inst, u16 *spr_cache)
 {
 	u32 len;
 
@@ -2169,6 +2224,9 @@ static void cmdq_buf_print_logic(char *text, u32 txt_sz,
 			cmdq_parse_logic_sop(cmdq_inst->s_op),
 			CMDQ_REG_IDX_PREFIX(cmdq_inst->arg_b_type),
 			CMDQ_GET_32B_VALUE(cmdq_inst->arg_b, cmdq_inst->arg_c));
+
+			if (cmdq_inst->arg_a < 4)
+				spr_cache[cmdq_inst->arg_a] = cmdq_inst->arg_c;
 		break;
 	case CMDQ_LOGIC_NOT:
 		len = snprintf(text, txt_sz,
@@ -2272,13 +2330,14 @@ void cmdq_buf_cmd_parse(u64 *buf, u32 cmd_nr, dma_addr_t buf_pa,
 	static char text[txt_sz];
 	struct cmdq_instruction *cmdq_inst = (struct cmdq_instruction *)buf;
 	u32 i;
+	u16 spr_cache[4] = {0};
 
 	for (i = 0; i < cmd_nr; i++) {
 		switch (cmdq_inst[i].op) {
 		case CMDQ_CODE_WRITE_S:
 		case CMDQ_CODE_WRITE_S_W_MASK:
 			cmdq_buf_print_write(text, txt_sz, (u32)buf_pa,
-				&cmdq_inst[i]);
+				&cmdq_inst[i], spr_cache);
 			break;
 		case CMDQ_CODE_WFE:
 			cmdq_buf_print_wfe(text, txt_sz, (u32)buf_pa,
@@ -2294,7 +2353,7 @@ void cmdq_buf_cmd_parse(u64 *buf, u32 cmd_nr, dma_addr_t buf_pa,
 			break;
 		case CMDQ_CODE_LOGIC:
 			cmdq_buf_print_logic(text, txt_sz, (u32)buf_pa,
-				&cmdq_inst[i]);
+				&cmdq_inst[i], spr_cache);
 			break;
 		case CMDQ_CODE_JUMP_C_ABSOLUTE:
 		case CMDQ_CODE_JUMP_C_RELATIVE:
@@ -2328,11 +2387,11 @@ s32 cmdq_pkt_dump_buf(struct cmdq_pkt *pkt, dma_addr_t curr_pa)
 	u32 size, cnt = 0;
 
 	if (!pkt) {
-		cmdq_err("%s pkt is empty");
+		cmdq_err("%s pkt is empty",__func__);
 		return -EINVAL;
 	}
 	if (!pkt->task_alive) {
-		cmdq_err("%s task_alive:%d", pkt->task_alive);
+		cmdq_err("%s task_alive:%d",__func__,pkt->task_alive);
 		return -EINVAL;
 	}
 
@@ -2355,7 +2414,7 @@ s32 cmdq_pkt_dump_buf(struct cmdq_pkt *pkt, dma_addr_t curr_pa)
 		}
 		cmdq_util_user_msg(client->chan, "buffer %u va:0x%p pa:%pa",
 			cnt, buf->va_base, &buf->pa_base);
-		if (buf->va_base) {
+		if(buf->va_base) {
 			cmdq_buf_cmd_parse(buf->va_base, CMDQ_NUM_CMD(size),
 				buf->pa_base, curr_pa, NULL, client->chan);
 		}
@@ -2368,17 +2427,18 @@ EXPORT_SYMBOL(cmdq_pkt_dump_buf);
 
 int cmdq_dump_pkt(struct cmdq_pkt *pkt, dma_addr_t pc, bool dump_ist)
 {
-	struct cmdq_client *client = (struct cmdq_client *)pkt->cl;
+	struct cmdq_client *client;
 
 	if (!pkt) {
-		cmdq_err("%s pkt is empty");
+		cmdq_err("%s pkt is empty",__func__);
 		return -EINVAL;
 	}
 	if (!pkt->task_alive) {
-		cmdq_err("%s task_alive:%d", pkt->task_alive);
+		cmdq_err("%s task_alive:%d",__func__,pkt->task_alive);
 		return -EINVAL;
 	}
 
+	client = (struct cmdq_client *)pkt->cl;
 	cmdq_util_user_msg(client->chan,
 		"pkt:0x%p(%#x) size:%zu/%zu avail size:%zu priority:%u%s",
 		pkt, (u32)(unsigned long)pkt, pkt->cmd_buf_size,

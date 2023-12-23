@@ -1,6 +1,5 @@
 #
 # Copyright (C) 2015 MediaTek Inc.
-# Copyright (C) 2021 XiaoMi, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -20,6 +19,8 @@ else ifeq ($(CONFIG_MACH_MT6893),y)
 	PDIR = mt6893
 else ifeq ($(CONFIG_MACH_MT6877),y)
 	PDIR = mt6877
+else ifeq ($(CONFIG_MACH_MT6781),y)
+	PDIR = mt6781
 else
 	PDIR = $(MTK_PLATFORM)
 endif
@@ -43,7 +44,7 @@ obj-$(CONFIG_THERMAL) += mtk_thermal_monitor.o
 obj-$(CONFIG_THERMAL) += mtk_cooler_shutdown.o
 ifeq ($(CONFIG_MTK_LEDS), y)
     # setMaxbrightness() defined in mediatek/kernel/drivers/leds/leds_drv.c only built when CONFIG_MTK_LEDS is set
-    #obj-$(CONFIG_THERMAL) += mtk_cooler_backlight.o
+     #obj-$(CONFIG_THERMAL) += mtk_cooler_backlight.o
     obj-$(CONFIG_THERMAL) += mtk_cooler_backlight_cus.o
 endif
 obj-$(CONFIG_THERMAL) += mtk_cooler_flashlight_cus.o
@@ -65,6 +66,8 @@ else ifeq ($(CONFIG_MACH_MT6893),y)
 obj-y += mt6893/
 else ifeq ($(CONFIG_MACH_MT6877),y)
 obj-y += mt6877/
+else ifeq ($(CONFIG_MACH_MT6781),y)
+obj-y += mt6781/
 else
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
 endif

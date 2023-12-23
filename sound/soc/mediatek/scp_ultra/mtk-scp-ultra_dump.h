@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -16,7 +15,6 @@
 #define AUDIO_IPI_CLIENT_ULTRA_H
 
 #include <linux/fs.h>           /* needed by file_operations* */
-#include "audio_messenger_ipi.h"
 
 
 void audio_ipi_client_ultra_init(void);

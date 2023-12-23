@@ -117,6 +117,7 @@ struct pg_callbacks md1_subsys_handle = {
 	.debug_dump = md1_subsys_debug_dump,
 };
 
+#ifdef CONFIG_MTK_DEVAPC
 /*devapc_violation_triggered*/
 static enum devapc_cb_status devapc_dump_adv_cb(uint32_t vio_addr)
 {
@@ -149,11 +150,14 @@ static struct devapc_vio_callbacks devapc_test_handle = {
 	.id = INFRA_SUBSYS_MD,
 	.debug_dump_adv = devapc_dump_adv_cb,
 };
+#endif
 
 void ccci_md_devapc_register_cb(void)
 {
 	/*register handle function*/
+#ifdef CONFIG_MTK_DEVAPC
 	register_devapc_vio_callback(&devapc_test_handle);
+#endif
 }
 
 void ccci_md_dump_in_interrupt(char *user_info)
@@ -413,7 +417,7 @@ void ccci_set_clk_by_id(int idx, unsigned int on)
 {
 	int ret = 0;
 
-	if (idx >= ARRAY_SIZE(clk_table))
+	if (idx >= ARRAY_SIZE(clk_table) || idx < 0)
 		return;
 	else if (clk_table[idx].clk_ref == NULL)
 		return;
@@ -475,6 +479,9 @@ void md_cd_lock_modem_clock_src(int locked)
 	if (locked) {
 		int settle = mt_secure_call(MD_CLOCK_REQUEST,
 				MD_REG_AP_MDSRC_SETTLE, 0, 0, 0, 0, 0);
+
+		if (!(settle > 0 && settle < 10))
+			settle = 3;
 
 		mdelay(settle);
 		ret = mt_secure_call(MD_CLOCK_REQUEST,

@@ -44,7 +44,7 @@
 #include <linux/rtc.h>
 #include "aed.h"
 #include <linux/highmem.h>
-#include <mt-plat/slog.h>
+#include "../mrdump/mrdump_private.h"
 
 struct aee_req_queue {
 	struct list_head list;
@@ -73,6 +73,9 @@ static struct proc_dir_entry *aed_proc_dir;
 
 #define MaxStackSize 8100
 #define MaxMapsSize 65536
+
+static int ee_num;
+static int kernelapi_num;
 
 /******************************************************************************
  * DEBUG UTILITIES
@@ -160,6 +163,11 @@ void msg_show(const char *prefix, struct AE_Msg *msg)
 		msg->len);
 }
 
+int aee_get_mode(void)
+{
+	return aee_mode;
+}
+EXPORT_SYMBOL(aee_get_mode);
 
 /******************************************************************************
  * CONSTANT DEFINITIONS
@@ -337,7 +345,7 @@ static void ke_gen_class_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_CLASS;
 	rep_msg->len = KE_CLASS_SIZE;
-	strncpy(data, KE_CLASS_STR, KE_CLASS_SIZE);
+	strlcpy(data, KE_CLASS_STR, KE_CLASS_SIZE);
 }
 
 static void ke_gen_type_msg(void)
@@ -355,7 +363,7 @@ static void ke_gen_type_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_TYPE;
 	rep_msg->len = KE_TYPE_SIZE;
-	strncpy(data, KE_TYPE_STR, KE_TYPE_SIZE);
+	strlcpy(data, KE_TYPE_STR, KE_TYPE_SIZE);
 }
 
 static void ke_gen_module_msg(void)
@@ -410,7 +418,7 @@ static void ke_gen_process_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_PROCESS;
 
-	strncpy(data, aed_dev.kerec.lastlog->process_path,
+	strlcpy(data, aed_dev.kerec.lastlog->process_path,
 			AEE_PROCESS_NAME_LENGTH);
 	/* Count into the NUL byte at end of string */
 	rep_msg->len = strlen(data) + 1;
@@ -429,7 +437,7 @@ static void ke_gen_backtrace_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_BACKTRACE;
 
-	strncpy(data, aed_dev.kerec.lastlog->backtrace, AEE_BACKTRACE_LENGTH);
+	strlcpy(data, aed_dev.kerec.lastlog->backtrace, AEE_BACKTRACE_LENGTH);
 	/* Count into the NUL byte at end of string */
 	rep_msg->len = strlen(data) + 1;
 }
@@ -728,7 +736,7 @@ static void ee_gen_class_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_CLASS;
 	rep_msg->len = EX_CLASS_EE_SIZE;
-	strncpy(data, EX_CLASS_EE_STR, EX_CLASS_EE_SIZE);
+	strlcpy(data, EX_CLASS_EE_STR, EX_CLASS_EE_SIZE);
 }
 
 static void ee_gen_type_msg(void)
@@ -747,8 +755,8 @@ static void ee_gen_type_msg(void)
 	rep_msg->cmdType = AE_RSP;
 	rep_msg->cmdId = AE_REQ_TYPE;
 	rep_msg->len = strlen((char const *)&eerec->assert_type) + 1;
-	strncpy(data, (char const *)&eerec->assert_type,
-		strlen((char const *)&eerec->assert_type));
+	strlcpy(data, (char const *)&eerec->assert_type,
+		strlen((char const *)&eerec->assert_type) + 1);
 }
 
 static void ee_gen_process_msg(void)
@@ -1282,6 +1290,7 @@ static ssize_t aed_ke_write(struct file *filp, const char __user *buf,
 		pr_info("ERR: aed_write count=%zx\n", count);
 		return -1;
 	}
+
 	if (!buf) {
 		pr_info("ERR: aed_write buf=NULL\n");
 		return -1;
@@ -1560,6 +1569,7 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		pr_info("ERR: %s arg=NULL\n", __func__);
 		return -EINVAL;
 	}
+
 	if (down_interruptible(&aed_dal_sem) < 0)
 		return -ERESTARTSYS;
 
@@ -1727,15 +1737,14 @@ static long aed_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				user_ret = task_pt_regs(task);
 				memcpy(&(tmp->regs), user_ret,
 						sizeof(struct pt_regs));
+				rcu_read_unlock();
 				if (copy_to_user
 				    ((struct aee_thread_reg __user *)arg, tmp,
 				     sizeof(struct aee_thread_reg))) {
 					kfree(tmp);
-					rcu_read_unlock();
 					ret = -EFAULT;
 					goto EXIT;
 				}
-				rcu_read_unlock();
 
 			} else {
 				pr_info(
@@ -2165,7 +2174,7 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 	unsigned long userstack_end = 0, length = 0;
 	int mapcount = 0;
 	struct file *file;
-	int flags;
+	unsigned long flags;
 	struct mm_struct *mm;
 	int ret = 0;
 	char tpath[512];
@@ -2344,7 +2353,6 @@ int DumpThreadNativeInfo(struct aee_oops *oops)
 		     (MaxStackSize-1)) ? (userstack_end - userstack_start) :
 			(MaxStackSize-1);
 		oops->userthread_stack.StackLength = length;
-
 		if (!userstack_start) {
 			pr_info("ERR: %s userstack_start = NULL\n", __func__);
 			return 0;
@@ -2367,14 +2375,14 @@ static void kernel_reportAPI(const enum AE_DEFECT_ATTR attr, const int db_opt,
 	struct timeval tv = { 0 };
 	int len;
 
-	if ((attr == AE_DEFECT_EXCEPTION) &&
-		(strstr(msg, "GPUHS") || strstr(module, "cache parity")))
-		slog("#$#kernel#@#%s#:%s", module, msg);
-
 	if ((aee_mode >= AEE_MODE_CUSTOMER_USER || (aee_mode ==
 		AEE_MODE_CUSTOMER_ENG && attr == AE_DEFECT_WARNING))
-		&& (attr != AE_DEFECT_FATAL))
-		return;
+		&& (attr != AE_DEFECT_FATAL)) {
+		if (!aed_get_status() && (kernelapi_num < 5))
+			kernelapi_num++;
+		else
+			return;
+	}
 	oops = aee_oops_create(attr, AE_KERNEL_PROBLEM_REPORT, module);
 	if (oops != NULL) {
 		do_gettimeofday(&tv);
@@ -2444,13 +2452,15 @@ static void external_exception(const char *assert_type, const int *log,
 	struct rtc_time tm;
 	struct timeval tv = { 0 };
 	char trigger_time[60];
-
-	if (strstr(assert_type, "combo_bt") || strstr(assert_type, "combo_wifi"))
-		slog("#$#external#@#%s#%s", assert_type, detail);
+	int n = 0;
 
 	if ((aee_mode >= AEE_MODE_CUSTOMER_USER) &&
-		(aee_force_exp == AEE_FORCE_EXP_NOT_SET))
-		return;
+		(aee_force_exp == AEE_FORCE_EXP_NOT_SET)) {
+		if (!aed_get_status() && (ee_num < 5))
+			ee_num++;
+		else
+			return;
+	}
 	eerec = kzalloc(sizeof(struct aed_eerec), GFP_ATOMIC);
 	if (eerec == NULL) {
 		return;
@@ -2477,17 +2487,19 @@ static void external_exception(const char *assert_type, const int *log,
 
 	do_gettimeofday(&tv);
 	rtc_time_to_tm(tv.tv_sec - sys_tz.tz_minuteswest * 60, &tm);
-	snprintf(trigger_time, sizeof(trigger_time),
+	n = snprintf(trigger_time, sizeof(trigger_time),
 			"Trigger time:[%d-%02d-%02d %02d:%02d:%02d.%03d]\n",
 			tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
 			tm.tm_hour, tm.tm_min, tm.tm_sec,
 			(unsigned int)tv.tv_usec);
+	if (n <= 0)
+		pr_debug("%s: snprintf error\n", __func__);
 	memset(eerec->assert_type, 0, sizeof(eerec->assert_type));
-	strncpy(eerec->assert_type, assert_type,
-			sizeof(eerec->assert_type) - 1);
+	strlcpy(eerec->assert_type, assert_type,
+			sizeof(eerec->assert_type));
 	memset(eerec->exp_filename, 0, sizeof(eerec->exp_filename));
-	strncpy(eerec->exp_filename, trigger_time,
-			sizeof(eerec->exp_filename) - 1);
+	strlcpy(eerec->exp_filename, trigger_time,
+			sizeof(eerec->exp_filename));
 	strncat(eerec->exp_filename, detail,
 			sizeof(eerec->exp_filename) - 1 - strlen(trigger_time));
 	pr_debug("EE %s\n", eerec->assert_type);
@@ -2663,6 +2675,11 @@ static struct miscdevice aed_ke_dev = {
 static int __init aed_init(void)
 {
 	int err = 0;
+
+	if (!aee_is_enable()) {
+		pr_info("%s: aee is disable\n", __func__);
+		return 0;
+	}
 
 	err = aed_proc_init();
 	if (err != 0)

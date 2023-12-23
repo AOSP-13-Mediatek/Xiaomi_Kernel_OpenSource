@@ -81,12 +81,14 @@ static DEFINE_MUTEX(gimgsensor_mutex);
 
 struct IMGSENSOR  gimgsensor;
 struct IMGSENSOR *pgimgsensor = &gimgsensor;
+MUINT32 last_id;
 
 /*prevent imgsensor race condition in vulunerbility test*/
 struct mutex imgsensor_mutex;
 
 
 DEFINE_MUTEX(pinctrl_mutex);
+DEFINE_MUTEX(oc_mutex);
 
 /************************************************************************
  * Profiling
@@ -415,6 +417,10 @@ imgsensor_sensor_close(struct IMGSENSOR_SENSOR *psensor)
 		imgsensor_mutex_lock(psensor_inst);
 
 		psensor_func->psensor_inst = psensor_inst;
+
+		if (pgimgsensor->imgsensor_oc_irq_enable != NULL)
+			pgimgsensor->imgsensor_oc_irq_enable(
+					psensor->inst.sensor_idx, false);
 
 		ret = psensor_func->SensorClose();
 		if (ret != ERROR_NONE) {
@@ -1075,6 +1081,12 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 				psensorResolution->SensorFullHeight,
 				psensorResolution->SensorVideoWidth,
 				psensorResolution->SensorVideoHeight);
+
+	if (pSensorGetInfo->SensorId <= last_id) {
+		memset(mtk_ccm_name, 0, camera_info_size);
+		pr_debug("memset ok");
+	}
+	last_id = pSensorGetInfo->SensorId;
 
 	/* Add info to proc: camera_info */
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
@@ -2426,6 +2438,8 @@ static long imgsensor_ioctl(
 			    _IOC_SIZE(a_u4Command))) {
 
 				kfree(pBuff);
+				//0825
+				pBuff = NULL;
 				pr_debug(
 				    "[CAMERA SENSOR] ioctl copy from user failed\n");
 				i4RetValue =  -EFAULT;
@@ -2511,6 +2525,8 @@ static long imgsensor_ioctl(
 	default:
 		pr_debug("No such command %d\n", a_u4Command);
 		i4RetValue = -EPERM;
+		kfree(pBuff);
+		goto CAMERA_HW_Ioctl_EXIT;
 		break;
 	}
 
@@ -2519,11 +2535,12 @@ static long imgsensor_ioctl(
 						  pBuff,
 						_IOC_SIZE(a_u4Command))) {
 		kfree(pBuff);
+		//0825
+		pBuff = NULL;
 		pr_debug("[CAMERA SENSOR] ioctl copy to user failed\n");
 		i4RetValue =  -EFAULT;
 		goto CAMERA_HW_Ioctl_EXIT;
 	}
-
 	kfree(pBuff);
 CAMERA_HW_Ioctl_EXIT:
 	return i4RetValue;

@@ -767,16 +767,18 @@ s32 smi_debug_bus_hang_detect(const bool gce, const char *user)
 
 	for (i = 0; i < SMI_LARB_NUM && !ret; i++)
 		ret = (busy[i] == time ? i : ret);
-
-	if (!ret || busy[SMI_LARB_NUM] < time)
+	if (!ret || busy[SMI_LARB_NUM] < time) {
 		SMIWRN(gce, "SMI MM bus NOT hang, check master %s\n", user);
-	else
-		SMIWRN(gce, "SMI MM bus may hang by %s/M4U/EMI/DVFS\n", user);
+		smi_debug_dump_status(gce);
+		return 0;
+	}
+
+	SMIWRN(gce, "SMI MM bus may hang by %s/M4U/EMI/DVFS\n", user);
 	for (i = 0; i <= SMI_DEV_NUM; i++)
 		if (!i || i == SMI_LARB_NUM || i == SMI_DEV_NUM)
 			smi_debug_dumper(gce, true, i);
 
-	for (i = 0; i < time; i++)
+	for (i = 1; i < time; i++)
 		for (j = 0; j <= SMI_DEV_NUM; j++)
 			smi_debug_dumper(gce, false, j);
 	smi_debug_dump_status(gce);
@@ -829,6 +831,13 @@ static inline void smi_larb_port_set(const struct mtk_smi_dev *smi)
 		i < smi_larb_bw_thrt_en_port[smi->id][1]; i++)
 		writel(readl(smi->base + SMI_LARB_NON_SEC_CON(i)) | 0x8,
 			smi->base + SMI_LARB_NON_SEC_CON(i));
+#if IS_ENABLED(CONFIG_MACH_MT6853)
+		if (readl(smi->base + SMI_LARB_NON_SEC_CON(i)) & 0x4)
+			pr_info("[SMI LOG]smi_larb%d, port%d[2]:%#x\n",
+				smi->id, i,
+				readl(smi->base + SMI_LARB_NON_SEC_CON(i)));
+#endif
+
 
 #if IS_ENABLED(CONFIG_MACH_MT6765) || IS_ENABLED(CONFIG_MACH_MT6768) || \
 	IS_ENABLED(CONFIG_MACH_MT6771)
@@ -836,6 +845,34 @@ static inline void smi_larb_port_set(const struct mtk_smi_dev *smi)
 		writel(0x780000, smi_mmsys_base + MMSYS_HW_DCM_1ST_DIS_SET0);
 #endif
 }
+
+s32 smi_larb_port_check(void)
+{
+#if IS_ENABLED(CONFIG_MACH_MT6853)
+	s32 i;
+
+	mtk_smi_clk_enable(smi_dev[2]);
+
+	for (i = smi_larb_bw_thrt_en_port[2][0];
+		i < smi_larb_bw_thrt_en_port[2][1]; i++)
+		if (readl(smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i)) & 0x4) {
+			pr_info("[SMI LOG]cmdq smi_larb2 port%d:%#x\n",
+				i, readl(smi_dev[2]->base
+				+ SMI_LARB_NON_SEC_CON(i)));
+			writel(readl(smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i))
+				& 0xFFFFFFFB,
+				smi_dev[2]->base + SMI_LARB_NON_SEC_CON(i));
+			pr_info("[SMI LOG]new cmdq smi_larb2 port%d:%#x\n",
+				i, readl(smi_dev[2]->base
+				+ SMI_LARB_NON_SEC_CON(i)));
+		}
+
+	mtk_smi_clk_disable(smi_dev[2]);
+#endif
+	return 0;
+}
+EXPORT_SYMBOL_GPL(smi_larb_port_check);
+
 
 static s32 smi_bwc_conf(const struct MTK_SMI_BWC_CONF *conf)
 {
@@ -1350,7 +1387,7 @@ static inline void smi_dram_init(void)
 	smi_dram.node = debugfs_create_file(
 		"smi_mon", 0444, NULL, (void *)0, &smi_dram_file_opers);
 	if (IS_ERR(smi_dram.node))
-		SMIERR("debugfs_create_file failed: %ld\n",
+		pr_info("debugfs_create_file failed: %ld\n",
 			PTR_ERR(smi_dram.node));
 }
 

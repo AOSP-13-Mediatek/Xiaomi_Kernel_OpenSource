@@ -1048,7 +1048,7 @@ int ili_tddi_init(void)
 	if (ili_ice_mode_ctrl(ENABLE, OFF) < 0)
 		ILI_ERR("Failed to enable ice mode during ili_tddi_init\n");
 
-	if (ili_ic_dummy_check() < 0 ) {
+	if (ili_ic_dummy_check() < 0) {
 		ILI_ERR("Not found ilitek chip\n");
 		return -ENODEV;
 	}

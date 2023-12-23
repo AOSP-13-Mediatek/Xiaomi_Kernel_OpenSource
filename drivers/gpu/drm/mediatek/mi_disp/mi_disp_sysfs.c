@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #define pr_fmt(fmt)	"mi_disp_sysfs:[%s] " fmt, __func__
@@ -20,9 +19,6 @@
 //#define to_dsi_bridge(x)     container_of((x), struct dsi_bridge, base)
 
 #define to_disp_display(d) dev_get_drvdata(d)
-#define to_drm_connector(d) dev_get_drvdata(d)
-extern int mi_dsi_set_thermal_hbm_disabled(struct mtk_dsi *dsi, bool thermal_hbm_disabled);
-extern int mi_dsi_get_thermal_hbm_disabled(struct mtk_dsi *dsi, bool *thermal_hbm_disabled);
 
 static ssize_t disp_param_store(struct device *device,
 			   struct device_attribute *attr,
@@ -34,7 +30,9 @@ static ssize_t disp_param_store(struct device *device,
 	const char *delim = " ";
 	u32 tmp_data = 0;
 	int ret = 0;
-
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+	int index = 0;
+#endif
 	memset(&ctl, 0, sizeof(struct disp_feature_ctl));
 
 	input_copy = kstrdup(buf, GFP_KERNEL);
@@ -63,21 +61,58 @@ static ssize_t disp_param_store(struct device *device,
 			goto exit_free;
 		}
 	}
-	/* Removes leading whitespace from input_copy */
-	if (input_copy) {
-		input_copy = skip_spaces(input_copy);
+
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
+	if (ctl.feature_id == DISP_FEATURE_BIST_MODE_COLOR) {
+		ctl.tx_ptr = kzalloc(sizeof(u8) * 3, GFP_KERNEL);
+		if (!ctl.tx_ptr) {
+			DISP_ERROR("vmalloc failed for DISP_FEATURE_BIST_MODE\n");
+			goto exit_free;
+		}
+		for (index = 0; index < 3; index++) {
+			/* Removes leading whitespace from input_copy */
+			if (input_copy) {
+				input_copy = skip_spaces(input_copy);
+			} else {
+				DISP_ERROR("please check the number of parameters\n");
+				ret = -EAGAIN;
+				kfree(ctl.tx_ptr);
+				goto exit_free;
+			}
+
+			token = strsep(&input_copy, delim);
+			if (token) {
+				ret = kstrtoint(token, 10, &tmp_data);
+				if (ret) {
+					DISP_ERROR("input buffer conversion failed\n");
+					ret = -EAGAIN;
+					kfree(ctl.tx_ptr);
+					goto exit_free;
+				}
+				ctl.tx_ptr[index] = tmp_data & 0xFF;
+			}
+		}
 	} else {
-		DISP_ERROR("please check the number of parameters\n");
-		ret = -EAGAIN;
-		goto exit_free;
+#endif
+		/* Removes leading whitespace from input_copy */
+		if (input_copy) {
+			input_copy = skip_spaces(input_copy);
+		} else {
+			DISP_ERROR("please check the number of parameters\n");
+			ret = -EAGAIN;
+			goto exit_free;
+		}
+
+		ret = kstrtoint(input_copy, 10, &tmp_data);
+		if (ret) {
+			DISP_ERROR("input buffer conversion failed\n");
+			ret = -EAGAIN;
+			goto exit_free;
+		}
+		ctl.feature_val = tmp_data;
+#if !defined(CONFIG_DRM_PANEL_K16_38_0C_0A_DSC_VDO) && !defined(CONFIG_DRM_PANEL_K16_38_0E_0B_DSC_VDO)
 	}
-	ret = kstrtoint(input_copy, 10, &tmp_data);
-	if (ret) {
-		DISP_ERROR("input buffer conversion failed\n");
-		ret = -EAGAIN;
-		goto exit_free;
-	}
-	ctl.feature_val = tmp_data;
+#endif
 
 	if (dd_ptr->intf_type == MI_INTF_DSI) {
 		ret = mi_dsi_display_set_disp_param(dd_ptr->display, &ctl);
@@ -89,6 +124,8 @@ static ssize_t disp_param_store(struct device *device,
 
 exit_free:
 	kfree(input_dup);
+	if (ctl.tx_ptr)
+		kfree(ctl.tx_ptr);
 exit:
 	return ret ? ret : count;
 }
@@ -101,6 +138,108 @@ static ssize_t disp_param_show(struct device *device,
 
 	if (dd_ptr->intf_type == MI_INTF_DSI) {
 		return mi_dsi_display_get_disp_param(dd_ptr->display, buf, PAGE_SIZE);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+	}
+}
+
+static ssize_t mipi_rw_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct disp_display *dd_ptr = to_disp_display(device);
+	int ret = 0;
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		ret = mi_dsi_display_write_mipi_reg(dd_ptr->display, (char *)buf);
+	} else {
+		DISP_ERROR("Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+		ret = -EINVAL;
+	}
+
+	return ret ? ret : count;
+}
+
+static ssize_t mipi_rw_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_display *dd_ptr = to_disp_display(device);
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		return mi_dsi_display_read_mipi_reg(dd_ptr->display, buf);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+	}
+}
+
+static ssize_t calib_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct disp_display *dd_ptr = to_disp_display(device);
+	int ret = 0;
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		ret = mi_dsi_display_enable_calib(dd_ptr->display, (char *)buf);
+	} else {
+		DISP_ERROR("Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+		ret = -EINVAL;
+	}
+
+	return ret ? ret : count;
+}
+
+static ssize_t calib_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	int ret = 0;
+	struct disp_display *dd_ptr = to_disp_display(device);
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		ret = mi_dsi_display_get_calib_status((char *)buf);
+	} else {
+		ret = snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+	}
+	return ret;
+}
+
+static ssize_t gir_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	struct disp_display *dd_ptr = to_disp_display(device);
+	int ret = 0;
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		if (strstr(buf, "on")) {
+			ret = mi_dsi_display_enable_gir(dd_ptr->display, (char *)buf);
+		} else if (strstr(buf, "off")) {
+			ret = mi_dsi_display_disable_gir(dd_ptr->display, (char *)buf);
+		}
+	} else {
+		DISP_ERROR("Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+		ret = -EINVAL;
+	}
+
+	return ret ? ret : count;
+}
+
+static ssize_t gir_show(struct device *device,
+			   struct device_attribute *attr,
+			   char *buf)
+{
+	struct disp_display *dd_ptr = to_disp_display(device);
+
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		return 0;
 	} else {
 		return snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
 			get_disp_intf_type_name(dd_ptr->intf_type));
@@ -124,14 +263,15 @@ static ssize_t panel_info_show(struct device *device,
 static ssize_t wp_info_show(struct device *device,
 			struct device_attribute *attr, char *buf)
 {
+	size_t wpinfo_size = 64;
 	struct disp_display *dd_ptr = to_disp_display(device);
-
 	if (dd_ptr->intf_type == MI_INTF_DSI) {
-		return mi_dsi_display_read_wp_info(dd_ptr->display, buf, PAGE_SIZE);
+		return mi_dsi_display_read_wp_info(dd_ptr->display, buf, wpinfo_size);
 	} else {
 		return snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
 			get_disp_intf_type_name(dd_ptr->intf_type));
 	}
+
 }
 
 static ssize_t dynamic_fps_show(struct device *device,
@@ -219,64 +359,34 @@ static ssize_t brightness_clone_store(struct device *device,
 	return ret ? ret : count;
 }
 
-static ssize_t panel_event_show(struct device *device,
-		struct device_attribute *attr,
-		char *buf)
-{
-	ssize_t ret = 0;
-	struct drm_connector *connector = to_drm_connector(device);
-	if (!connector) {
-		pr_info("%s-%d connector is NULL \r\n",__func__, __LINE__);
-		return ret;
-	}
-	return snprintf(buf, PAGE_SIZE, "%d\n", connector->panel_event);
-}
-
-static ssize_t thermal_hbm_disabled_store(struct device *device,
-			   struct device_attribute *attr,
-			   const char *buf, size_t count)
+static ssize_t disp_count_store(struct device *device,
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	struct disp_display *dd_ptr = to_disp_display(device);
-	struct mtk_dsi *dsi = (struct mtk_dsi *)dd_ptr->display;
-	char *input_copy, *input_dup = NULL;
-	bool thermal_hbm_disabled;
-	int ret;
+	int ret = 0;
 
-	input_copy = kstrdup(buf, GFP_KERNEL);
-	if (!input_copy) {
-		pr_err("can not allocate memory\n");
-		ret = -ENOMEM;
-		goto exit;
-	}
-	input_dup = input_copy;
-	/* removes leading and trailing whitespace from input_copy */
-	input_copy = strim(input_copy);
-	ret = kstrtobool(input_copy, &thermal_hbm_disabled);
-	if (ret) {
-		pr_err("input buffer conversion failed\n");
-		ret = -EAGAIN;
-		goto exit_free;
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		return mi_dsi_display_set_disp_count(dd_ptr->display, (char *)buf);
+	} else {
+		DISP_ERROR("Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+		ret = -EINVAL;
 	}
 
-	pr_info("set thermal_hbm_disabled %d\n", thermal_hbm_disabled);
-	ret = mi_dsi_set_thermal_hbm_disabled(dsi, thermal_hbm_disabled);
-
-exit_free:
-	kfree(input_dup);
-exit:
 	return ret ? ret : count;
 }
 
-static ssize_t thermal_hbm_disabled_show(struct device *device,
-			   struct device_attribute *attr,
-			   char *buf)
+static ssize_t disp_count_show(struct device *device,
+		struct device_attribute *attr, char *buf)
 {
 	struct disp_display *dd_ptr = to_disp_display(device);
-	struct mtk_dsi *dsi = (struct mtk_dsi *)dd_ptr->display;
-	bool thermal_hbm_disabled;
+	if (dd_ptr->intf_type == MI_INTF_DSI) {
+		return mi_dsi_display_get_disp_count(dd_ptr->display, buf);
+	} else {
+		return snprintf(buf, PAGE_SIZE, "Unsupported display(%s intf)\n",
+			get_disp_intf_type_name(dd_ptr->intf_type));
+	}
 
-	mi_dsi_get_thermal_hbm_disabled(dsi, &thermal_hbm_disabled);
-	return snprintf(buf, PAGE_SIZE, "%d\n", thermal_hbm_disabled);
 }
 
 #if 0
@@ -317,15 +427,18 @@ static ssize_t hw_vsync_info_show(struct device *device,
 
 	return ret;
 }
+
 #endif
 static DEVICE_ATTR_RW(disp_param);
+static DEVICE_ATTR_RW(mipi_rw);
 static DEVICE_ATTR_RO(panel_info);
 static DEVICE_ATTR_RO(wp_info);
 static DEVICE_ATTR_RO(dynamic_fps);
 static DEVICE_ATTR_RW(doze_brightness);
 static DEVICE_ATTR_RW(brightness_clone);
-static DEVICE_ATTR_RW(thermal_hbm_disabled);
-static DEVICE_ATTR_RO(panel_event);
+static DEVICE_ATTR_RW(calib);
+static DEVICE_ATTR_RW(gir);
+static DEVICE_ATTR_RW(disp_count);
 
 #if 0
 static DEVICE_ATTR_RO(gamma_test);
@@ -334,13 +447,15 @@ static DEVICE_ATTR_RO(hw_vsync_info);
 
 static struct attribute *disp_feature_attrs[] = {
 	&dev_attr_disp_param.attr,
+	&dev_attr_mipi_rw.attr,
 	&dev_attr_panel_info.attr,
 	&dev_attr_wp_info.attr,
 	&dev_attr_dynamic_fps.attr,
 	&dev_attr_doze_brightness.attr,
 	&dev_attr_brightness_clone.attr,
-	&dev_attr_thermal_hbm_disabled.attr,
-	&dev_attr_panel_event.attr,
+	&dev_attr_calib.attr,
+	&dev_attr_gir.attr,
+	&dev_attr_disp_count.attr,
 #if 0
 	&dev_attr_gamma_test.attr,
 	&dev_attr_hw_vsync_info.attr,
@@ -403,6 +518,29 @@ ssize_t mi_drm_sysfs_read_mipi_reg(struct drm_connector *connector,
 	}
 
 	return dsi_display_read_mipi_reg(connector, buf);
+}
+
+ssize_t mi_drm_sysfs_led_i2c_reg_write(struct drm_connector *connector,
+			char *buf, size_t count)
+{
+
+	if (!connector) {
+		pr_err("Invalid connector/encoder/bridge ptr\n");
+		return -EINVAL;
+	}
+
+	return mi_dsi_display_write_led_i2c_reg(connector, buf, count);
+}
+
+ssize_t mi_drm_sysfs_led_i2c_reg_read(struct drm_connector *connector,
+			char *buf)
+{
+	if (!connector) {
+		pr_err("Invalid connector ptr\n");
+		return -EINVAL;
+	}
+
+	return mi_dsi_display_read_led_i2c_reg(connector, buf);
 }
 
 ssize_t mi_drm_sysfs_read_panel_info(struct drm_connector *connector,

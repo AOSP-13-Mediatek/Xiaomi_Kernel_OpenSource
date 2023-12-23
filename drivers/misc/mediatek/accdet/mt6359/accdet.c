@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Author: Argus Lin <argus.lin@mediatek.com>
  */
 
@@ -76,10 +75,10 @@
 #define EINT_PIN_PLUG_OUT       (0)
 #define EINT_PIN_MOISTURE_DETECTED (2)
 
-/* Audio Start */
+/*Audio Start*/
 #define MEDIA_PREVIOUS_SCAN_CODE 257
 #define MEDIA_NEXT_SCAN_CODE 258
-/* Audio End */
+/*Audio End*/
 
 #define HEADSET_STATUS_RECORD
 
@@ -244,12 +243,28 @@ static struct task_struct *thread;
 #define DEBUGFS_DIR_NAME "accdet"
 #define DEBUGFS_HEADSET_STATUS_FILE_NAME "headset_status"
 #define HEADSET_EVENT_MAX (5)
-#define HEADSET_EVENT_OFFSET_MAX (12)
 static u16 headset_status[HEADSET_EVENT_MAX] = {0,0,0,0,0};
 static u32 headphone_status = 0;
 static u32 microphone_status = 0;
 static struct dentry* accdet_debugfs_dir;
 #endif
+
+/* add et7480 */
+#ifdef CONFIG_USB_SWITCH_ET7480
+
+enum et_function {
+	ET_MIC_GND_SWAP,
+	ET_USBC_ORIENTATION_CC1,
+	ET_USBC_ORIENTATION_CC2,
+	ET_USBC_DISPLAYPORT_DISCONNECTED,
+	ET_EVENT_MAX,
+};
+static struct device_node *et_handle = NULL;
+extern int et7480_switch_event(struct device_node *node, enum et_function event);
+
+#endif
+/* end */
+
 /*******************local function declaration******************/
 #ifdef CONFIG_ACCDET_EINT_IRQ
 static u32 config_moisture_detect_1_0(void);
@@ -291,7 +306,7 @@ static void add_headset_event(u32 event_index, u32 event_offset);
 static void add_headset_event(u32 event_index, u32 event_offset) {
 	u16 status;
 
-	if (event_index > HEADSET_EVENT_MAX || event_offset > HEADSET_EVENT_OFFSET_MAX) {
+	if (event_index >= HEADSET_EVENT_MAX) {
 		return;
 	}
 
@@ -1292,11 +1307,13 @@ static void multi_key_detection(u32 cur_AB)
 	if (cur_eint_state == EINT_PIN_PLUG_IN)
 #endif
 		send_key_event(cur_key, !cur_AB);
+#if (defined CONFIG_ACCDET_EINT_IRQ) || (defined CONFIG_ACCDET_EINT)
 	else {
 		pr_info("accdet plugout sideeffect key,do not report key=%d\n",
 			cur_key);
 		cur_key = NO_KEY;
 	}
+#endif
 
 	if (cur_AB)
 		cur_key = NO_KEY;
@@ -2101,6 +2118,13 @@ cur_AB = pmic_read(PMIC_ACCDET_MEM_IN_ADDR) >> ACCDET_STATE_MEM_IN_OFFSET;
 			if (eint_accdet_sync_flag) {
 				cable_type = HEADSET_NO_MIC;
 				accdet_status = HOOK_SWITCH;
+#ifdef CONFIG_USB_SWITCH_ET7480
+				/* add et7480 switch event */
+				if (et_handle) {
+					pr_info("%s: use et7480 to switch mic and gnd", __func__);
+					et7480_switch_event(et_handle, 0);
+				}
+#endif
 			} else
 				pr_info("accdet headset has been plug-out\n");
 			mutex_unlock(&accdet_eint_irq_sync_mutex);
@@ -2913,6 +2937,12 @@ static int accdet_get_dts_data(void)
 		accdet_dts.eint_use_ext_res,
 		accdet_dts.moisture_use_ext_res);
 
+#ifdef CONFIG_USB_SWITCH_ET7480
+	et_handle = of_parse_phandle(node, "et7480-i2c-handle", 0);
+	if (NULL == et_handle) {
+		pr_err("%s: get et_handle error. \n", __func__);
+	}
+#endif
 	return 0;
 }
 
@@ -3542,7 +3572,9 @@ int mt_accdet_probe(struct platform_device *dev)
 	}
 
 #ifdef CONFIG_ACCDET_EINT
+#ifndef CONFIG_USB_SWITCH_ET7480
 	ret = ext_eint_setup(dev);
+#endif
 	if (ret) {
 		pr_notice("%s ap eint setup fail.ret:%d\n", __func__, ret);
 		goto err_eint_setup;
@@ -3641,3 +3673,24 @@ long mt_accdet_unlocked_ioctl(struct file *file, unsigned int cmd,
 	}
 	return 0;
 }
+
+#ifdef CONFIG_USB_SWITCH_ET7480
+void accdet_eint_callback_wrapper(unsigned int plug_status)
+{
+	int ret = 0;
+
+	pr_info("%s: call ex eint handler, plug_status %d\n", __func__, plug_status);
+	//queue_work(eint_workqueue, &eint_work);
+
+	cur_eint_state = (plug_status == 1 ? EINT_PIN_PLUG_IN : EINT_PIN_PLUG_OUT);
+
+	disable_irq_nosync(accdet_irq);
+
+	pr_info("accdet %s(), cur_eint_state=%d\n", __func__, cur_eint_state);
+
+	ret = queue_work(eint_workqueue, &eint_work);
+
+	pr_info("%s: exit queue work\n", __func__);
+}
+EXPORT_SYMBOL(accdet_eint_callback_wrapper);
+#endif

@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -2077,6 +2076,32 @@ static kal_uint32 streaming_control(kal_bool enable)
 	return ERROR_NONE;
 }
 
+#include "../../../../../sensor/2.0/mtk_nanohub/mtk_nanohub.h"
+extern mtk_nanohub_set_cmd_to_hub(uint8_t sensor_id, enum CUST_ACTION action, void *data);
+static kal_uint32 exposure_for_gyroscope()
+{
+	//use vendor name distinguish gyroscope
+	//icm40607_gyro --1gong  icm4n607_gyro --2gong
+	char str_gyro[] = "icm40607_gyro";
+	int err = 0, res = 0;
+	unsigned int exposure = 0;
+	struct sensorInfo_t hubinfo;
+	memset(&hubinfo, 0, sizeof(hubinfo));
+	err = mtk_nanohub_set_cmd_to_hub(3, CUST_ACTION_GET_SENSOR_INFO, &hubinfo);	//3 means gyroscope
+	if (err < 0) {
+		pr_err("type(3) not registered\n");
+	}
+	res = strcmp(hubinfo.name, str_gyro);
+	if (0 == res){
+		exposure = 6530000;
+	}
+	else {
+		exposure = 3330000;
+	}
+	pr_err("gyroscope vendor name:%s, exposure time:%d", hubinfo.name, exposure);
+	return exposure;
+}
+
 static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 				  UINT8 *feature_para, UINT32 *feature_para_len)
 {
@@ -2109,7 +2134,7 @@ static kal_uint32 feature_control(MSDK_SENSOR_FEATURE_ENUM feature_id,
 		*(feature_data + 1) = imgsensor_info.min_shutter;
 		break;
         case SENSOR_FEATURE_GET_OFFSET_TO_START_OF_EXPOSURE:
-                *(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = 6530000;
+                *(MUINT32 *)(uintptr_t)(*(feature_data + 1)) = exposure_for_gyroscope();
                 break;
 	case SENSOR_FEATURE_GET_PERIOD:
 		*feature_return_para_16++ = imgsensor.line_length;

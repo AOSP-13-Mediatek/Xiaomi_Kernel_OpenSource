@@ -21,9 +21,6 @@
 #include <linux/sched.h>
 
 
-#define MIN(x, y) ((x) < (y) ? (x) : (y))
-
-
 int write_rb(const char *data, int32_t size);
 int read_rb(char *data, int32_t size) ;
 int get_rb_free_size(void);

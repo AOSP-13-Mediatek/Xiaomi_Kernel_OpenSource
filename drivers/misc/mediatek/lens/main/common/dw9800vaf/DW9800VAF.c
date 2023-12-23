@@ -27,6 +27,7 @@
 
 #define AF_DRVNAME "DW9800VAF_DRV"
 #define AF_I2C_SLAVE_ADDR        0x18
+#define EEPROM_I2C_SLAVE_ADDR    0xA2
 
 #define AF_DEBUG
 #ifdef AF_DEBUG
@@ -47,13 +48,40 @@ static unsigned long g_u4AF_MACRO = 1023;
 static unsigned long g_u4TargetPosition;
 static unsigned long g_u4CurrPosition;
 
+static int read_vendor_id(u16 a_u2Addr)
+{
+	u8 vendorID = 0xFF;
+	int i4RetValue = 0;
+	char puReadCmd[2] = {(char)(a_u2Addr >> 8), (char)(a_u2Addr & 0xFF)};
+
+	g_pstAF_I2Cclient->addr = EEPROM_I2C_SLAVE_ADDR;
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+
+	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puReadCmd, 2);
+	if (i4RetValue < 0) {
+		LOG_INF(" I2C write failed!!\n");
+		return -1;
+	}
+
+	i4RetValue = i2c_master_recv(g_pstAF_I2Cclient, (char *)&vendorID, 1);
+	if (i4RetValue != 1) {
+		LOG_INF(" I2C read failed!!\n");
+		return -1;
+	}
+
+	g_pstAF_I2Cclient->addr = AF_I2C_SLAVE_ADDR;
+	g_pstAF_I2Cclient->addr = g_pstAF_I2Cclient->addr >> 1;
+
+	return vendorID;
+}
+
 static int i2c_read(u8 a_u2Addr, u8 *a_puBuff)
 {
 	int i4RetValue = 0;
 	char puReadCmd[1] = { (char)(a_u2Addr) };
 
 	i4RetValue = i2c_master_send(g_pstAF_I2Cclient, puReadCmd, 1);
-	if (i4RetValue != 1) {
+	if (i4RetValue < 0) {
 		LOG_INF(" I2C write failed!!\n");
 		return -1;
 	}
@@ -130,21 +158,80 @@ static inline int getAFInfo(__user struct stAF_MotorInfo *pstMotorInfo)
 static int initdrv(void)
 {
 	int i4RetValue = 0;
-	char puSendCmdArray[7][2] = {
+	int iVendorID  = 0;
+	int cmd_number = 0;
+	int i          = 0;
+	char (*puSendCmdArray)[2];
+
+#if defined(_XIAOMI_ARES_)
+	char puSendCmdArray_ARES[7][2] = {
+	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
+	{0x02, 0x02}, {0x06, 0x80}, {0x07, 0x71}, {0xFE, 0xFE},
+	};
+#elif defined(_XIAOMI_CHOPIN_)
+	char puSendCmdArray_CHOPIN_SUNNY[7][2] = {
+	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
+	{0x02, 0x02}, {0x06, 0x80}, {0x07, 0x66}, {0xFE, 0xFE},
+	};
+
+	char puSendCmdArray_CHOPIN_OFILM[8][2] = {
+	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
+	{0x02, 0x02}, {0x06, 0x80}, {0x07, 0x6f}, {0x10, 0x01}, {0xFE, 0xFE},
+	};
+#elif defined(_XIAOMI_AGATE_)
+	char puSendCmdArray_AGATE[7][2] = {
+	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
+	{0x02, 0x02}, {0x06, 0x80}, {0x07, 0x7C}, {0xFE, 0xFE},
+	};
+#elif defined(_XIAOMI_PISSARRO_)
+	char puSendCmdArray_PISSARRO[7][2] = {
 	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
 	{0x02, 0x02}, {0x06, 0x40}, {0x07, 0x0B}, {0xFE, 0xFE},
 	};
-	unsigned char cmd_number;
+#else
+	char puSendCmdArray_COMMON[7][2] = {
+	{0x02, 0x01}, {0x02, 0x00}, {0xFE, 0xFE},
+	{0x02, 0x02}, {0x06, 0x80}, {0x07, 0x71}, {0xFE, 0xFE},
+	};
+#endif
+
+	iVendorID = read_vendor_id(0x01);
+	LOG_INF("vendor id = 0x%x", iVendorID);
+
+#if defined(_XIAOMI_ARES_)
+	puSendCmdArray = puSendCmdArray_ARES;
+	cmd_number = 7;
+#elif defined(_XIAOMI_CHOPIN_)
+	if (0x01 == iVendorID) {
+		puSendCmdArray = puSendCmdArray_CHOPIN_SUNNY;
+		cmd_number = 7;
+	} else if (0x07 == iVendorID) {
+		puSendCmdArray = puSendCmdArray_CHOPIN_OFILM;
+		cmd_number = 8;
+	} else {
+		puSendCmdArray = puSendCmdArray_CHOPIN_SUNNY;
+		cmd_number = 7;
+	}
+#elif defined(_XIAOMI_AGATE_)
+	puSendCmdArray = puSendCmdArray_AGATE;
+	cmd_number = 7;
+#elif defined(_XIAOMI_PISSARRO_)
+	puSendCmdArray = puSendCmdArray_PISSARRO;
+	cmd_number = 7;
+#else
+	puSendCmdArray = puSendCmdArray_COMMON;
+	cmd_number = 7;
+#endif
 
 	LOG_INF("InitDrv[1] %p, %p\n", &(puSendCmdArray[1][0]),
 			puSendCmdArray[1]);
 	LOG_INF("InitDrv[2] %p, %p\n", &(puSendCmdArray[2][0]),
 			puSendCmdArray[2]);
 
-	for (cmd_number = 0; cmd_number < 7; cmd_number++) {
-		if (puSendCmdArray[cmd_number][0] != 0xFE) {
+	for (i = 0; i < cmd_number; i++) {
+		if (puSendCmdArray[i][0] != 0xFE) {
 			i4RetValue = i2c_master_send(g_pstAF_I2Cclient,
-					puSendCmdArray[cmd_number], 2);
+					puSendCmdArray[i], 2);
 
 			if (i4RetValue < 0)
 				return -1;
@@ -171,6 +258,10 @@ static inline int moveAF(unsigned long a_u4Position)
 
 		initdrv();
 		ret = s4DW9800VAF_ReadReg(&InitPos);
+		LOG_INF("read 0x02 ==> 0x%x", read_data(0x02));
+		LOG_INF("read 0x06 ==> 0x%x", read_data(0x06));
+		LOG_INF("read 0x07 ==> 0x%x", read_data(0x07));
+		LOG_INF("read 0x10 ==> 0x%x", read_data(0x10));
 
 		if (ret == 0) {
 			LOG_INF("Init Pos %6d\n", InitPos);
@@ -190,8 +281,8 @@ static inline int moveAF(unsigned long a_u4Position)
 		spin_unlock(g_pAF_SpinLock);
 	}
 
-//	if (g_u4CurrPosition == a_u4Position)
-//		return 0;
+	//if (g_u4CurrPosition == a_u4Position)
+		//return 0;
 
 	spin_lock(g_pAF_SpinLock);
 	g_u4TargetPosition = a_u4Position;
@@ -267,14 +358,13 @@ long DW9800VAF_Ioctl(struct file *a_pstFile,
 int DW9800VAF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 {
 	LOG_INF("Start\n");
+
 	if (*g_pAF_Opened == 2)
 	{
 	    int ret = 0;
 	    unsigned long af_step = 50;
 	    unsigned long nextPosition = 0;
 	    unsigned long endPos = 512;
-	    // >512 multiple times
-	    // first step move fast
 	    if (g_u4CurrPosition > endPos) {
 		if (g_u4CurrPosition > 800) {
 		    nextPosition = 800;
@@ -288,7 +378,6 @@ int DW9800VAF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		    }
 		}
 		mdelay(3);
-
 		while (g_u4CurrPosition > endPos + af_step) {
 		    if (g_u4CurrPosition > 700) {
 			af_step = 50;
@@ -306,8 +395,6 @@ int DW9800VAF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 		    mdelay(3);
 		}
 		} else if (g_u4CurrPosition < endPos)
-		    // <512 multiple times
-		    // first step move fast
 		    if (g_u4CurrPosition > 300) {
 			nextPosition = 300;
 			LOG_INF("0:nextPosition = %d g_u4CurrPosition = %d g_u4AF_MACRO = %d", nextPosition, g_u4CurrPosition,g_u4AF_MACRO);
@@ -320,7 +407,6 @@ int DW9800VAF_Release(struct inode *a_pstInode, struct file *a_pstFile)
 			}
 		    }
 		    mdelay(3);
-
 		while (g_u4CurrPosition < endPos - af_step) {
 		    if (g_u4CurrPosition > 400) {
 			af_step = 50;

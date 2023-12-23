@@ -24,7 +24,6 @@
  *
  *
  * Copyright (c) 2015 Fingerprint Cards AB <tech@fingerprints.com>
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License Version 2
@@ -89,13 +88,14 @@
 //void mt_spi_disable_clk(struct mt_spi_t *ms);
 
 //#define FPC_DRM_INTERFACE_WA
-
 #ifndef FPC_DRM_INTERFACE_WA
 #include <drm/drm_bridge.h>
 #include <drm/mi_disp_notifier.h>
 #endif
 
 struct regulator *regu_buck;
+
+extern struct regulator *buck;
 
 #ifdef CONFIG_SPI_MT65XX
 extern void mt_spi_enable_master_clk(struct spi_device *spidev);
@@ -229,6 +229,23 @@ static int hw_reset(struct fpc1022_data *fpc1022)
 	return 0;
 }
 
+/* XIAOMI_ADD_BEGIN */
+static void power_reset(void)
+{
+	int status = -EINVAL;
+	status = regulator_get_voltage(buck);
+	printk("%s, voltage before power down is %d\n", __func__, status);
+
+	/* power down */
+	status = regulator_disable(buck);
+	usleep_range(100*1000, 200*1000);
+
+	/* power up */
+	status = regulator_enable(buck);
+	usleep_range(100*1000, 200*1000);
+}
+/* XIAOMI_ADD_END */
+
 static ssize_t hw_reset_set(struct device *dev,
 			    struct device_attribute *attr, const char *buf,
 			    size_t count)
@@ -236,8 +253,10 @@ static ssize_t hw_reset_set(struct device *dev,
 	int ret;
 	struct fpc1022_data *fpc1022 = dev_get_drvdata(dev);
 
-	if (!strncmp(buf, "reset", strlen("reset")))
+	if (!strncmp(buf, "reset", strlen("reset"))) {
+		power_reset();
 		ret = hw_reset(fpc1022);
+	}
 	else
 		return -EINVAL;
 	return ret ? ret : count;

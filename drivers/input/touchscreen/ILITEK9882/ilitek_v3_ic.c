@@ -1096,7 +1096,7 @@ int ili_ic_dummy_check(void)
 		ILI_ERR("ice mode doesn't enable\n");
 		return -1;
 	}
-	
+
 	if (ili_ice_mode_write(WDT9_DUMMY2, wdata, sizeof(u32)) < 0)
 		ILI_ERR("Write dummy error\n");
 

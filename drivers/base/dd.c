@@ -387,7 +387,7 @@ static int really_probe(struct device *dev, struct device_driver *drv)
 	if (!list_empty(&dev->devres_head)) {
 		dev_crit(dev, "Resources present before probing\n");
 		ret = -EBUSY;
-		goto done;
+        goto done;
 	}
 
 re_probe:

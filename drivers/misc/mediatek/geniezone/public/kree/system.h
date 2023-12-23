@@ -25,6 +25,8 @@
 #include <tz_cross/trustzone.h>
 #include <gz-trusty/trusty.h>
 
+#define MAX_UUID_LEN (40)
+
 void KREE_SESSION_LOCK(int32_t handle);
 void KREE_SESSION_UNLOCK(int32_t handle);
 
@@ -95,7 +97,7 @@ TZ_RESULT KREE_CloseSession(KREE_SESSION_HANDLE handle);
  */
 TZ_RESULT KREE_TeeServiceCallPlus(KREE_SESSION_HANDLE handle, uint32_t command,
 				   uint32_t paramTypes, union MTEEC_PARAM param[4],
-				   uint32_t cpumask);
+				   int32_t cpumask);
 
 /**
  * Make a TEE service call

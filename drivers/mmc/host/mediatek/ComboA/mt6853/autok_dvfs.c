@@ -448,6 +448,19 @@ int sd_execute_dvfs_autok(struct msdc_host *host, u32 opcode)
 		}
 	}
 
+		/* Distinguish mmc by timing */
+	if (host->mmc->ios.timing == MMC_TIMING_MMC_HS200) {
+#ifdef MSDC_HQA
+		msdc_HQA_set_voltage(host);
+#endif
+		if (opcode == MMC_SEND_STATUS) {
+			pr_notice("[AUTOK]MMC HS200 Tune CMD only\n");
+			ret = hs200_execute_tuning_cmd(host, res);
+		} else {
+			pr_notice("[AUTOK]MMC HS200 Tune\n");
+			ret = hs200_execute_tuning(host, res);
+		}
+	}
 	return ret;
 }
 
@@ -891,7 +904,7 @@ static int emmc_autok_switch_cqe(struct msdc_host *host, bool enable)
 #ifdef SD_RUNTIME_AUTOK_MERGE
 int sd_runtime_autok_merge(struct msdc_host *host)
 {
-	int merge_result, merge_mode, merge_window, merge_count;
+	int merge_result, merge_mode, merge_window;
 	int i, ret = 0;
 	u8 *res = host->autok_res[AUTOK_VCORE_LEVEL1];
 
@@ -934,12 +947,11 @@ int sd_runtime_autok_merge(struct msdc_host *host)
 #ifdef EMMC_RUNTIME_AUTOK_MERGE
 int emmc_runtime_autok_merge(u32 opcode)
 {
-	int ret = 0;
 #if !defined(FPGA_PLATFORM)
 	struct msdc_host *host = mtk_msdc_host[0];
 	void __iomem *base;
 	int merge_result, merge_mode, merge_window;
-	int i;
+	int i, ret = 0;
 
 	if (!(host->mmc->caps2 & MMC_CAP2_HS400_1_8V)
 	 && !(host->mmc->caps2 & MMC_CAP2_HS200_1_8V_SDR)) {

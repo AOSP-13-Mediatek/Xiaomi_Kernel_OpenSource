@@ -74,16 +74,6 @@ unsigned int ccci_get_md_debug_mode(struct ccci_modem *md)
 }
 EXPORT_SYMBOL(ccci_get_md_debug_mode);
 
-void ccci_get_platform_version(char *ver)
-{
-#ifdef ENABLE_CHIP_VER_CHECK
-	sprintf(ver, "MT%04x_S%02x",
-		get_chip_hw_ver_code(), (get_chip_hw_subcode() & 0xFF));
-#else
-	sprintf(ver, "MT6735_S00");
-#endif
-}
-
 #ifdef FEATURE_LOW_BATTERY_SUPPORT
 static int ccci_md_low_power_notify(
 	struct ccci_modem *md, enum LOW_POEWR_NOTIFY_TYPE type, int level)
@@ -378,10 +368,10 @@ static  struct dvfs_ref s_ul_dvfs_tbl[] = {
 	{500000000LL, 1700000, 1706000, -1, -1, 0, 0x02, 0xC0, 0xC0},
 	{300000000LL, 1500000, 1500000, -1, -1, 1, 0xFF, 0xFF, 0x3D},
 	{250000000LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
+
 	/* normal */
 	{0LL, -1, -1, -1, -1, -1, 0xFF, 0xFF, 0x3D},
 };
-
 
 struct dvfs_ref *mtk_ccci_get_dvfs_table(int is_ul, int *tbl_num)
 {
@@ -396,5 +386,53 @@ struct dvfs_ref *mtk_ccci_get_dvfs_table(int is_ul, int *tbl_num)
 	/* DL settings */
 	*tbl_num = (int)ARRAY_SIZE(s_dl_dvfs_tbl);
 	return s_dl_dvfs_tbl;
+}
+
+int mtk_ccci_cpu_freq_rta(u64 dl_speed, u64 ul_speed, int ref[], int n)
+{
+	static int last_lvl;
+
+	if (n != 2) {
+		CCCI_REPEAT_LOG(-1, "speed", "%s: cluster not 2(%d)\r\n",
+					__func__, n);
+		return 0;
+	}
+
+	if ((dl_speed + ul_speed) >= 1350000000LL) {
+		ref[0] = 1500000;
+		ref[1] = -1;
+		if (last_lvl != 1) {
+			last_lvl = 1;
+			CCCI_REPEAT_LOG(-1, "speed", "%s: lvl:%d\r\n",
+					__func__, last_lvl);
+			return 1;
+		}
+		return 0;
+	}
+	if ((dl_speed + ul_speed) >= 1000000000LL) {
+		ref[0] = 800000;
+		ref[1] = -1;
+		if (last_lvl != 2) {
+			last_lvl = 2;
+			CCCI_REPEAT_LOG(-1, "speed", "%s: lvl:%d\r\n",
+					__func__, last_lvl);
+			return 1;
+		}
+		return 0;
+	}
+
+	if ((dl_speed + ul_speed) < 800000000LL) {
+		ref[0] = -1;
+		ref[1] = -1;
+		if (last_lvl != 0) {
+			last_lvl = 0;
+			CCCI_REPEAT_LOG(-1, "speed", "%s: lvl:%d\r\n",
+					__func__, last_lvl);
+			return 1;
+		}
+		return 0;
+	}
+
+	return 0;
 }
 

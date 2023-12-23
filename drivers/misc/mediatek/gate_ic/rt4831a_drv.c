@@ -101,9 +101,8 @@ static void _gate_ic_backlight_enable(void)
 		_gate_ic_i2c_write_bytes(BACKLIGHT_CONFIG_1, 0x6B);
 	} else {
 		_gate_ic_i2c_write_bytes(BACKLIGHT_CONFIG_1, 0x68);
-		if (!atomic_read(&gate_client->backlight_status)) {
+		if (!atomic_read(&gate_client->backlight_status))
 			_gate_ic_backlight_set(0);
-		}
 	}
 	_gate_ic_i2c_write_bytes(BACKLIGHT_CONFIG_2, 0x9D);
 	_gate_ic_i2c_write_bytes(BACKLIGHT_OPTION_1, 0x06);

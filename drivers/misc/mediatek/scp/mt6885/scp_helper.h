@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -119,15 +118,15 @@ enum scp_reserve_mem_id_t {
 	defined(CONFIG_MTK_VOW_SUPPORT)
 	AUDIO_IPI_MEM_ID,
 #endif
-#ifdef CONFIG_MTK_VOW_BARGE_IN_SUPPORT
 	VOW_BARGEIN_MEM_ID,
-#endif
 #ifdef SCP_PARAMS_TO_SCP_SUPPORT
 	SCP_DRV_PARAMS_MEM_ID,
 #endif
 #ifdef CONFIG_MTK_ULTRASND_PROXIMITY
 	ULTRA_MEM_ID,
+	SCP_ELLIPTIC_DEBUG_MEM,
 #endif
+	SENS_ALS_CALI_MEM_ID,
 	NUMS_MEM_ID,
 };
 
@@ -170,6 +169,7 @@ extern struct scp_regs scpreg;
 extern struct device_attribute dev_attr_scp_mobile_log;
 extern struct device_attribute dev_attr_scp_A_get_last_log;
 extern struct device_attribute dev_attr_scp_A_status;
+extern struct device_attribute dev_attr_log_filter;
 extern struct bin_attribute bin_attr_scp_dump;
 
 /* scp loggger */

@@ -51,40 +51,38 @@ enum MODE_CMD {
 };
 
 enum MODE_TYPE {
-	Touch_Game_Mode				= 0,
-	Touch_Active_MODE			= 1,
+	Touch_Game_Mode			= 0,
+	Touch_Active_MODE      		= 1,
 #ifdef CONFIG_NEW_TOUCH_GAMEMODE
 	Touch_Tap_Sensitivity		= 2,
 	Touch_Follow_Performance	= 3,
 	Touch_Aim_Sensitivity		= 4,
-	Touch_Tap_Stability			= 5,
-	Touch_Expert_Mode			= 6,
+	Touch_Tap_Stability		= 5,
+	Touch_Expert_Mode		= 6,
 #else
-	Touch_UP_THRESHOLD			= 2,
-	Touch_Tolerance				= 3,
-	Touch_Wgh_Min				= 4,
-	Touch_Wgh_Max				= 5,
-	Touch_Wgh_Step				= 6,
+	Touch_UP_THRESHOLD		= 2,
+	Touch_Tolerance			= 3,
+	Touch_Aim_Sensitivity           = 4,
+	Touch_Tap_Stability             = 5,
+	Touch_Expert_Mode               = 6,
 #endif
-	Touch_Edge_Filter			= 7,
-	Touch_Panel_Orientation		= 8,
-	Touch_Report_Rate			= 9,
-	Touch_Fod_Enable			= 10,
-	Touch_Aod_Enable			= 11,
-	Touch_Resist_RF				= 12,
-	Touch_Idle_Time				= 13,
-	Touch_Doubletap_Mode		= 14,
-	Touch_Grip_Mode				= 15,
-	Touch_FodIcon_Enable		= 16,
-	Touch_Nonui_Mode			= 17,
-	Touch_Debug_Level			= 18,
-	Touch_Power_Status			= 19,
-	Touch_Mode_NUM				= 20,
+	Touch_Edge_Filter      		= 7,
+	Touch_Panel_Orientation 	= 8,
+	Touch_Report_Rate      		= 9,
+	Touch_Fod_Enable       		= 10,
+	Touch_Aod_Enable       		= 11,
+	Touch_Resist_RF        		= 12,
+	Touch_Idle_Time        		= 13,
+	Touch_Doubletap_Mode   		= 14,
+	Touch_Grip_Mode        		= 15,
+	Touch_FodIcon_Enable   		= 16,
+	Touch_Nonui_Mode       		= 17,
+	Touch_Debug_Level      		= 18,
+	Touch_Power_Status     		= 19,
+	Touch_Mode_NUM         		= 20,
 };
 
 struct xiaomi_touch_interface {
-	int thp_cmd_buf[MAX_BUF_SIZE];
-	int thp_cmd_size;
 	int touch_mode[Touch_Mode_NUM][VALUE_TYPE_SIZE];
 	int (*setModeValue)(int Mode, int value);
 	int (*setModeLongValue)(int Mode, int value_len, int *value);
@@ -124,10 +122,10 @@ struct xiaomi_touch {
 	struct device *dev;
 	struct class *class;
 	struct attribute_group attrs;
-	struct mutex mutex;
-	struct mutex palm_mutex;
-	struct mutex prox_mutex;
-	wait_queue_head_t wait_queue;
+	struct mutex  mutex;
+	struct mutex  palm_mutex;
+	struct mutex  prox_mutex;
+	wait_queue_head_t 	wait_queue;
 };
 
 #define LAST_TOUCH_EVENTS_MAX 512

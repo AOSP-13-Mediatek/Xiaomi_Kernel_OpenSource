@@ -809,6 +809,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		}
 
 	if (uether_tx_profile) {
+		#ifdef CONFIG_64BIT
 		if (!tx_profile_start) {
 			starttime = ktime_get();
 			tx_profile_start = true;
@@ -830,6 +831,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 			tx_profile_start = false;
 			rec_data_len = 0;
 		}
+		#endif
 	}
 
 	spin_lock_irqsave(&dev->lock, flags);
@@ -923,7 +925,7 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	if (list_empty(&dev->tx_reqs)) {
 		busyCnt++;
 		if (__ratelimit(&ratelimit2))
-			U_ETHER_DBG("okCnt : %u, busyCnt : %u\n",
+			U_ETHER_DBG("okCnt : %lu, busyCnt : %lu\n",
 					okCnt, busyCnt);
 		spin_unlock_irqrestore(&dev->req_lock, flags);
 		rndis_test_tx_busy++;

@@ -2,7 +2,6 @@
 
 /*
  * Copyright (c) 2014-2020, Elliptic Laboratories AS. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  * Elliptic Labs Linux driver
  */
 

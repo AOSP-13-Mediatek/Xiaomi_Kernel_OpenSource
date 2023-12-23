@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -1386,17 +1385,17 @@ static int mtkts_btsntc_register_thermal(void)
 {
 	mtkts_btsntc_dprintk("[%s]\n", __func__);
 
-/*
 	if(p_thermal_zone_name){
+	/* trips : trip 0~1 */
 	thz_dev = mtk_thermal_zone_device_register(p_thermal_zone_name, num_trip,
 					NULL, &mtkts_btsntc_dev_ops, 0, 0, 0,
 					interval * 1000);
-	}else { */
+	}else {
 		/* trips : trip 0~1 */
-		thz_dev = mtk_thermal_zone_device_register("charger_therm", num_trip,
+		thz_dev = mtk_thermal_zone_device_register("quiet_therm", num_trip,
 					NULL, &mtkts_btsntc_dev_ops, 0, 0, 0,
 					interval * 1000);
-	//}
+	}
 	return 0;
 }
 

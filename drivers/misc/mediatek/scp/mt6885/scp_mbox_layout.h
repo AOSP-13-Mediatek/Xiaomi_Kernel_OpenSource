@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -48,16 +47,12 @@
 #define PIN_OUT_C_SIZE_SLEEP_1	         2 /* the following will use mbox 3 */
 #define PIN_OUT_R_SIZE_SLEEP_1	         1 /* the following will use mbox 3 */
 #define PIN_OUT_SIZE_TEST_1		 1 /* the following will use mbox 3 */
-#define PIN_OUT_SIZE_LOGGER_ENABLE_1	 1 /* the following will use mbox 3 */
-#define PIN_OUT_SIZE_LOGGER_WAKEUP_1	 1 /* the following will use mbox 3 */
-#define PIN_OUT_SIZE_LOGGER_INIT_1	 2 /* the following will use mbox 3 */
+#define PIN_OUT_SIZE_LOGGER_CTRL	 6 /* the following will use mbox 3 */
 #define PIN_OUT_SIZE_SCPCTL_1		 2 /* the following will use mbox 3 */
-#define PIN_OUT_SIZE_SCP_LOG_FILTER_1	 2 /* the following will use mbox 3 */
 
 /* definition of slot size for received PINs */
 #define PIN_IN_SIZE_SCP_ERROR_INFO_1	10 /* the following will use mbox 3 */
-#define PIN_IN_SIZE_LOGGER_WAKEUP_1	 1 /* the following will use mbox 3 */
-#define PIN_IN_SIZE_LOGGER_INIT_1	 5 /* the following will use mbox 3 */
+#define PIN_IN_SIZE_LOGGER_CTRL		 6 /* the following will use mbox 3 */
 #define PIN_IN_SIZE_SCP_READY_1		 1 /* the following will use mbox 3 */
 #define PIN_IN_SIZE_SCP_RAM_DUMP_1	 2 /* the following will use mbox 3 */
 /* ============================================================ */
@@ -70,5 +65,9 @@
 #define PIN_OUT_SIZE_SENSOR_0		14
 #define PIN_IN_SIZE_CHRE_0		14
 #define PIN_IN_SIZE_SENSOR_0		14
+
+#define PIN_OUT_SIZE_SCP_CONNSYS         10
+#define PIN_IN_SIZE_SCP_CONNSYS          10
+
 
 #endif

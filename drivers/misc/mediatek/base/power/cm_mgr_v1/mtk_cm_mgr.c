@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2016 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -650,6 +649,7 @@ cm_mgr_opp_end:
 
 void check_cm_mgr_status(unsigned int cluster, unsigned int freq)
 {
+
 #ifdef CM_TRIGEAR
 	unsigned int clamping_idx = CM_MGR_CPU_OPP_SIZE - 1;
 #endif
@@ -671,6 +671,7 @@ void check_cm_mgr_status(unsigned int cluster, unsigned int freq)
 	prev_freq[cluster] = 0;
 #endif /* CONFIG_MTK_CPU_FREQ */
 
+
 	/* if TRIGEAR use B cluster freq */
 #ifdef CM_TRIGEAR
 	clamping_idx = MIN(prev_freq_idx[CM_MGR_B], prev_freq_idx[CM_MGR_BB]);
@@ -678,6 +679,7 @@ void check_cm_mgr_status(unsigned int cluster, unsigned int freq)
 #else
 	cm_mgr_update_dram_by_cpu_opp(prev_freq_idx[CM_MGR_CPU_CLUSTER - 1]);
 #endif
+
 	check_cm_mgr_status_internal();
 }
 
@@ -1080,6 +1082,7 @@ static int dbg_cm_mgr_proc_show(struct seq_file *m, void *v)
 	}
 
 #ifdef PER_CPU_STALL_RATIO
+#ifndef USE_CM_POWER_ARGS
 	for (count = 0; count < CM_MGR_MAX; count++) {
 		cpu_power_gain_ptr(0, count, 0);
 
@@ -1129,6 +1132,7 @@ static int dbg_cm_mgr_proc_show(struct seq_file *m, void *v)
 			seq_puts(m, "\n");
 		}
 	}
+#endif /* USE_CM_POWER_ARGS */
 #endif /* PER_CPU_STALL_RATIO */
 
 	seq_puts(m, "_v2f_all\n");
@@ -1281,6 +1285,7 @@ out_fw:
 static ssize_t dbg_cm_mgr_proc_write(struct file *file,
 		const char __user *buffer, size_t count, loff_t *pos)
 {
+
 	int ret;
 	char *buf = (char *) __get_free_page(GFP_USER);
 	char cmd[64];

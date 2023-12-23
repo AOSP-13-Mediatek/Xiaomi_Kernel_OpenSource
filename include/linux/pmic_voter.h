@@ -2,7 +2,6 @@
 
 /*
  * Copyright (c) 2016-2019 The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #ifndef __PMIC_VOTER_H
@@ -22,6 +21,7 @@
 #define THERMAL_VOTER		"THERMAL_VOTER"
 #define STEP_CHARGE_VOTER	"STEP_CHARGE_VOTER"
 #define FFC_VOTER		"FFC_VOTER"
+#define ITERM_WA_VOTER		"ITERM_WA_VOTER"
 #define TYPEC_BURN_VOTER	"TYPEC_BURN_VOTER"
 #define CV_WA_VOTER		"CV_WA_VOTER"
 #define BAT_VERIFY_VOTER	"BAT_VERIFY_VOTER"

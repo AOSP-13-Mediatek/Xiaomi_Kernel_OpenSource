@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,7 +18,7 @@
 #include <linux/slab.h>
 #include <linux/syscore_ops.h>
 
-#ifdef CONFIG_MTK_DEVAPC
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 #include <mt-plat/devapc_public.h>
 #endif
 #include "clkchk.h"
@@ -91,10 +90,10 @@ bool is_valid_reg(void __iomem *addr)
 #endif
 }
 
-#ifdef CONFIG_MTK_DEVAPC
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 static void devapc_dump_regs(void)
 {
-	if (!clkchk_cfg || !clkchk_cfg || !clkchk_cfg->get_devapc_dump)
+	if (!clkchk_cfg || !clkchk_cfg->get_devapc_dump)
 		return;
 	clkchk_cfg->get_devapc_dump();
 }
@@ -108,7 +107,7 @@ static struct devapc_vio_callbacks devapc_vio_handle = {
 /******************* TOPCKGEN Subsys *******************************/
 static int get_vcore_opp(void)
 {
-	if (!clkchk_cfg || !clkchk_cfg || !clkchk_cfg->get_vcore_opp)
+	if (!clkchk_cfg || !clkchk_cfg->get_vcore_opp)
 		return VCORE_NULL;
 
 	return clkchk_cfg->get_vcore_opp();
@@ -439,7 +438,7 @@ int clkchk_init(struct clkchk_cfg_t *cfg)
 	else
 		pr_notice("clk register_syscore_ops fail\n");
 
-#ifdef CONFIG_MTK_DEVAPC
+#if IS_ENABLED(CONFIG_MTK_DEVAPC) && !IS_ENABLED(CONFIG_DEVAPC_LEGACY)
 	register_devapc_vio_callback(&devapc_vio_handle);
 #endif
 

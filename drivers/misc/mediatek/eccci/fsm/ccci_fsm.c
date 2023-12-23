@@ -23,10 +23,11 @@
 #include "modem_secure_base.h"
 #endif
 
-#ifndef CREATE_TRACE_POINTS
-#define CREATE_TRACE_POINTS
+#ifdef CCCI_PLATFORM_MT6781
+#include "modem_sys.h"
+#include "md_sys1_platform.h"
+#include "modem_reg_base.h"
 #endif
-#include <mt-plat/ccci_events.h>
 
 static struct ccci_fsm_ctl *ccci_fsm_entries[MAX_MD_NUM];
 
@@ -209,7 +210,6 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 		reason, __builtin_return_address(0));
 	fsm_monitor_send_message(ctl->md_id,
 		CCCI_MD_MSG_EXCEPTION, 0);
-	trace_ccci_event("ccci", "ap_md_reason", (unsigned int)reason, 0);
 	/* 1. state sanity check */
 	if (ctl->curr_state == CCCI_FSM_GATED) {
 		if (cmd)
@@ -257,7 +257,9 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 		ccci_md_exception_handshake(ctl->md_id,
 			MD_EX_CCIF_TIMEOUT);
 #if (MD_GENERATION >= 6297)
+#ifndef MTK_EMI_MPU_DISABLE
 		mtk_clear_md_violation();
+#endif
 #endif
 		count = 0;
 		while (count < MD_EX_REC_OK_TIMEOUT/EVENT_POLL_INTEVAL) {
@@ -345,7 +347,8 @@ static void fsm_routine_start(struct ccci_fsm_ctl *ctl,
 	__pm_stay_awake(&ctl->wakelock);
 	/* 2. poll for critical users exit */
 	while (count < BOOT_TIMEOUT/EVENT_POLL_INTEVAL && !needforcestop) {
-		if (ccci_port_check_critical_user(ctl->md_id) == 0) {
+		if (ccci_port_check_critical_user(ctl->md_id) == 0 ||
+				ccci_port_critical_user_only_fsd(ctl->md_id)) {
 			user_exit = 1;
 			break;
 		}
@@ -559,11 +562,48 @@ static void fsm_routine_wdt(struct ccci_fsm_ctl *ctl,
 	struct ccci_smem_region *mdss_dbg
 		= ccci_md_get_smem_by_user_id(ctl->md_id,
 			SMEM_USER_RAW_MDSS_DBG);
+#ifdef CCCI_PLATFORM_MT6781
+	struct ccci_modem *md = NULL;
+	struct md_sys1_info *md_info = NULL;
+	struct md_pll_reg *md_reg = NULL;
+
+	md = ccci_md_get_modem_by_id(ctl->md_id);
+	if (md)
+		md_info = (struct md_sys1_info *)md->private_data;
+	else {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s: get md fail\n", __func__);
+		return;
+	}
+	if (md_info)
+		md_reg = md_info->md_pll_base;
+	else {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s: get md private_data fail\n", __func__);
+		return;
+	}
+	if (!md_reg) {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s: get md_reg fail\n", __func__);
+		return;
+	}
+	if (!md_reg->md_l2sram_base) {
+		CCCI_ERROR_LOG(ctl->md_id, FSM,
+			"%s: get md_l2sram_base fail\n", __func__);
+		return;
+	}
+#endif
 
 	if (ctl->md_id == MD_SYS1)
+#ifdef CCCI_PLATFORM_MT6781
+		is_epon_set =
+			*((int *)(md_reg->md_l2sram_base
+				+ CCCI_EE_OFFSET_EPON_MD1)) == 0xBAEBAE10;
+#else
 		is_epon_set =
 			*((int *)(mdss_dbg->base_ap_view_vir
 				+ CCCI_EE_OFFSET_EPON_MD1)) == 0xBAEBAE10;
+#endif
 	else if (ctl->md_id == MD_SYS3)
 		is_epon_set = *((int *)(mdss_dbg->base_ap_view_vir
 			+ CCCI_EE_OFFSET_EPON_MD3))
@@ -597,10 +637,14 @@ static int fsm_main_thread(void *data)
 	struct ccci_fsm_ctl *ctl = (struct ccci_fsm_ctl *)data;
 	struct ccci_fsm_command *cmd = NULL;
 	unsigned long flags;
+	int ret;
 
-	while (1) {
-		wait_event(ctl->command_wq,
+	while (!kthread_should_stop()) {
+		ret = wait_event_interruptible(ctl->command_wq,
 			!list_empty(&ctl->command_queue));
+		if (ret == -ERESTARTSYS)
+			continue;
+
 		spin_lock_irqsave(&ctl->command_lock, flags);
 		cmd = list_first_entry(&ctl->command_queue,
 			struct ccci_fsm_command, entry);
@@ -650,6 +694,7 @@ int fsm_append_command(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *cmd = NULL;
 	int result = 0;
 	unsigned long flags;
+	int ret;
 
 	if (cmd_id <= CCCI_COMMAND_INVALID
 			|| cmd_id >= CCCI_COMMAND_MAX) {
@@ -685,12 +730,19 @@ int fsm_append_command(struct ccci_fsm_ctl *ctl,
 	 */
 	wake_up(&ctl->command_wq);
 	if (flag & FSM_CMD_FLAG_WAIT_FOR_COMPLETE) {
-		wait_event(cmd->complete_wq, cmd->complete != 0);
-		if (cmd->complete != 1)
-			result = -1;
-		spin_lock_irqsave(&ctl->cmd_complete_lock, flags);
-		kfree(cmd);
-		spin_unlock_irqrestore(&ctl->cmd_complete_lock, flags);
+		while (1) {
+			ret = wait_event_interruptible(cmd->complete_wq,
+				cmd->complete != 0);
+			if (ret == -ERESTARTSYS)
+				continue;
+
+			if (cmd->complete != 1)
+				result = -1;
+			spin_lock_irqsave(&ctl->cmd_complete_lock, flags);
+			kfree(cmd);
+			spin_unlock_irqrestore(&ctl->cmd_complete_lock, flags);
+			break;
+		}
 	}
 	return result;
 }

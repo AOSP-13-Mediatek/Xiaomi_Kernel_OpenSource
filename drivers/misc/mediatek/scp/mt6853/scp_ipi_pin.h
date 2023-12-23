@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2019 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -75,8 +74,16 @@ enum {
 	IPI_OUT_AUDIO_ULTRA_SND_0 =  26,
 	IPI_IN_AUDIO_ULTRA_SND_ACK_0 = 27,
 	IPI_IN_AUDIO_ULTRA_SND_0  =  28,
+#ifdef CONFIG_MTK_SENSORHUB
+	/* sensor */
+	IPI_OUT_SENSOR_CTRL       = 29,
+	IPI_IN_SENSOR_CTRL        = 30,
+	IPI_OUT_SENSOR_NOTIFY     = 31,
+	IPI_IN_SENSOR_NOTIFY      = 32,
+#endif
 	SCP_IPI_COUNT
 };
+
 
 extern struct mtk_mbox_device scp_mboxdev;
 extern struct mtk_ipi_device scp_ipidev;

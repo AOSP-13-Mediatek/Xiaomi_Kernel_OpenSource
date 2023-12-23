@@ -42,6 +42,8 @@ struct GPIO_PINCTRL gpio_pinctrl_list_switch[
 };
 #endif
 
+extern void gpio_dump_regs(void);
+
 static struct GPIO gpio_instance;
 
 static enum IMGSENSOR_RETURN gpio_init(
@@ -70,11 +72,17 @@ static enum IMGSENSOR_RETURN gpio_init(
 			gpio_pinctrl_list_cam[i].ppinctrl_lookup_names;
 
 			if (lookup_names) {
-				snprintf(str_pinctrl_name,
+				ret = snprintf(str_pinctrl_name,
 				sizeof(str_pinctrl_name),
 				"cam%d_%s",
 				j,
 				lookup_names);
+				if (ret < 0)
+					pr_info(
+						"ERROR:%s, snprintf err, %d\n",
+						__func__,
+						ret);
+
 				pgpio->ppinctrl_state_cam[j][i] =
 					pinctrl_lookup_state(
 						pgpio->ppinctrl,
@@ -173,12 +181,23 @@ static enum IMGSENSOR_RETURN gpio_set(
 	return IMGSENSOR_RETURN_SUCCESS;
 }
 
+static enum IMGSENSOR_RETURN gpio_dump(void *pintance)
+{
+#ifdef DUMP_GPIO
+	PK_DBG("[sensor_dump][gpio]\n");
+	gpio_dump_regs();
+	PK_DBG("[sensor_dump][gpio] finish\n");
+#endif
+	return IMGSENSOR_RETURN_SUCCESS;
+}
+
 static struct IMGSENSOR_HW_DEVICE device = {
 	.id        = IMGSENSOR_HW_ID_GPIO,
 	.pinstance = (void *)&gpio_instance,
 	.init      = gpio_init,
 	.set       = gpio_set,
-	.release   = gpio_release
+	.release   = gpio_release,
+	.dump      = gpio_dump
 };
 
 enum IMGSENSOR_RETURN imgsensor_hw_gpio_open(

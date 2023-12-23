@@ -11,7 +11,7 @@
 #include <linux/tracepoint.h>
 
 TRACE_EVENT(ufs_mtk_event,
-	TP_PROTO(unsigned int type,unsigned int data),
+	TP_PROTO(unsigned int type, unsigned int data),
 	TP_ARGS(type, data),
 
 	TP_STRUCT__entry(

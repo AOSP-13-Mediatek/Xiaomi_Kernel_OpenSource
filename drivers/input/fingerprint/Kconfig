@@ -27,13 +27,13 @@ config MTK_FINGERPRINT_SELECT
 
 config FPC_FINGERPRINT
 	bool "FPC Fingerprint"
-	default n
+	default y
 	help
 	  FPC fingerprint FPC's FPC1542 device.
 
 config GOODIX_CAP_FINGERPRINT
 	bool "Goodix CAP Fingerprint"
-	default n
+	default y
 	help
 	  Goodix Fingerprint chip GF3626ZS9 TEE driver
 
@@ -57,5 +57,12 @@ config GODDIX_G6_SENSOR
 	default n
 	help
 	  Goodix Fingerprint G6 sensor
+
+config GOODIX_K16_SENSOR
+	bool "Goodix Fingerprint k16 sensor"
+	default n
+	help
+	  Goodix Fingerprint k16 sensor
+
 endif
 endmenu

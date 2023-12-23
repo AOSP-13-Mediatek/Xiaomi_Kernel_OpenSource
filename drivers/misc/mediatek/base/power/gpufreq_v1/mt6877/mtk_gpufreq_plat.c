@@ -75,11 +75,6 @@ extern GED_LOG_BUF_HANDLE gpufreq_ged_log;
 #include "dbgtop.h"
 #endif
 
-#ifndef CREATE_TRACE_POINTS
-#define CREATE_TRACE_POINTS
-#endif
-#include <mt-plat/gpu_hardstop.h>
-
 enum gpu_dvfs_vgpu_step {
 	GPU_DVFS_VGPU_STEP_1 = 0x1,
 	GPU_DVFS_VGPU_STEP_2 = 0x2,
@@ -364,35 +359,11 @@ void mt_gpufreq_wdt_reset(void)
 	}
 }
 
-void mt_gpufreq_hardstop_dump_aee(void)
-{
-#if defined(CONFIG_MTK_AEE_FEATURE)
-#if defined(AGING_LOAD)
-	int cx = 0;
-	char aeelog[128];
-
-	cx = snprintf(aeelog, 128, "mfgpll=%d freq=%d vgpu=%d vsram_gpu=%d",
-		mt_get_subsys_freq(FM_MFGPLL1),
-		g_cur_opp_freq,
-		g_cur_opp_vgpu,
-		g_cur_opp_vsram_gpu);
-	if (cx >= 0 && cx < 128)
-		aee_kernel_exception("GPUEXP", "\nCRDISPATCH_KEY:GPUHS %s\n", aeelog);
-#else
-	// dump slog in normal load
-	trace_gpu_hardstop("gpuexp", "hs",
-		mt_get_subsys_freq(FM_MFGPLL1),
-		g_cur_opp_freq,
-		g_cur_opp_vgpu,
-		g_cur_opp_vsram_gpu);
-#endif // AGING_LOAD
-#endif // CONFIG_MTK_AEE_FEATURE
-}
-
 void mt_gpufreq_dump_infra_status(void)
 {
 	int i;
 	unsigned int start, offset, val;
+
 	gpufreq_pr_info("[GPU_DFD] ====\n");
 	gpufreq_pr_info("[GPU_DFD] mfgpll=%d freq=%d vgpu=%d vsram_gpu=%d\n",
 			mt_get_subsys_freq(FM_MFGPLL1),
@@ -816,9 +787,13 @@ void mt_gpufreq_set_timestamp(void)
 {
 	gpufreq_pr_debug("@%s\n", __func__);
 
-	/* write 1 into 0x13fb_f130 bit 0 to enable timestamp register */
-	/* timestamp will be used by clGetEventProfilingInfo*/
-	writel(0x00000001, g_mfg_base + 0x130);
+	/* timestamp will be used by clGetEventProfilingInfo
+	 * 0x13fb_f130
+	 * [0] : write 1 to enable timestamp register
+	 * [1] : 0: timer from internal module
+	 *     : 1: timer from soc
+	 */
+	writel(0x00000003, g_mfg_base + 0x130);
 }
 
 void mt_gpufreq_set_gpm(void)
@@ -1141,7 +1116,7 @@ static void __mt_gpufreq_dbgtop_pwr_on(bool enable)
 		rgu_pwr = readl(g_dbgtop + 0x060);
 
 		if ((enable && (rgu_pwr & 0x1)) ||
-		    (!enable && !(rgu_pwr & 0x1)))
+			(!enable && !(rgu_pwr & 0x1)))
 			break;
 
 		retry--;
@@ -4110,6 +4085,7 @@ static int __mt_gpufreq_mfgpll_probe(struct platform_device *pdev)
 static int __init __mt_gpufreq_init(void)
 {
 	int ret = 0;
+
 	if (mt_gpufreq_bringup()) {
 #if MT_GPUFREQ_SHADER_PWR_CTL_WA
 		spin_lock_init(&mt_gpufreq_clksrc_parking_lock);

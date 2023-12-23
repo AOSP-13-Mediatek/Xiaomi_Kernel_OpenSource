@@ -209,6 +209,6 @@ int fbt_get_default_gcc_enable(void)
 
 int fbt_get_l_min_bhropp(void)
 {
-	return 0;
+	return 1;
 }
 

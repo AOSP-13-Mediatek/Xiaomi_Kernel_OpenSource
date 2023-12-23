@@ -236,16 +236,28 @@ struct mtk_blocktag {
 struct mtk_blocktag *mtk_btag_alloc(const char *name,
 	unsigned int ringtrace_count, size_t ctx_size, unsigned int ctx_count,
 	struct mtk_btag_vops *vops);
-void mtk_btag_earaio_boost(bool boost);
 void mtk_btag_free(struct mtk_blocktag *btag);
+#if IS_ENABLED(CONFIG_SCHED_TUNE)
+void mtk_btag_earaio_boost(bool boost);
+#else
+#define mtk_btag_earaio_boost(...)
+#endif
 
 struct mtk_btag_trace *mtk_btag_curr_trace(struct mtk_btag_ringtrace *rt);
 struct mtk_btag_trace *mtk_btag_next_trace(struct mtk_btag_ringtrace *rt);
 
+#ifdef CONFIG_MMC_BLOCK_IO_LOG
 int mtk_btag_pidlog_add_mmc(struct request_queue *q, pid_t pid, __u32 len,
 	int rw);
+#else
+#define mtk_btag_pidlog_add_mmc(...)
+#endif
+#ifdef CONFIG_MTK_UFS_BLOCK_IO_LOG
 int mtk_btag_pidlog_add_ufs(struct request_queue *q, short pid, __u32 len,
 	int rw);
+#else
+#define mtk_btag_pidlog_add_ufs(...)
+#endif
 void mtk_btag_pidlog_insert(struct mtk_btag_pidlogger *pidlog, pid_t pid,
 __u32 len, int rw);
 

@@ -102,9 +102,7 @@ void lbat_test_callback(unsigned int thd)
 #endif
 
 static struct lbat_user lbat_pt;
-#ifndef LOW_BATTERY_PT_SETTING_V2
 static struct lbat_user lbat_pt_ext;
-#endif
 int g_low_battery_level;
 int g_low_battery_stop;
 /* give one change to ignore DLPT power off. battery voltage
@@ -212,8 +210,7 @@ void low_battery_protect_init(void)
 {
 	int ret = 0;
 #ifdef LOW_BATTERY_PT_SETTING_V2
-	unsigned int volt_arr[4] = {POWER_INT0_VOLT, POWER_INT1_VOLT,
-		POWER_INT2_VOLT, POWER_INT3_VOLT};
+	unsigned int volt_arr[4] = {3300, 3100, 2900, 2700};
 
 	ret = lbat_user_register_ext(&lbat_pt, "power throttling",
 				     volt_arr, ARRAY_SIZE(volt_arr),
@@ -633,7 +630,7 @@ void register_battery_percent_notify_ext(
 {
 	PMICLOG("[%s] start\n", __func__);
 
-	bpcb_tb_ext[prio_val].bpcb = battery_percent_callback;
+	bpcb_tb_ext[(unsigned int)prio_val].bpcb = battery_percent_callback;
 
 	pr_info("[%s] prio_val=%d\n", __func__, prio_val);
 
@@ -1417,17 +1414,13 @@ static ssize_t store_low_battery_protect_ut(
 			__func__, buf, size);
 		pvalue = (char *)buf;
 		ret = kstrtou32(pvalue, 16, (unsigned int *)&val);
-		if (val <= 3) {
+		if (val <= 2) {
 			if (val == LOW_BATTERY_LEVEL_0)
 				thd = POWER_INT0_VOLT;
 			else if (val == LOW_BATTERY_LEVEL_1)
 				thd = POWER_INT1_VOLT;
 			else if (val == LOW_BATTERY_LEVEL_2)
 				thd = POWER_INT2_VOLT;
-#ifdef LOW_BATTERY_PT_SETTING_V2
-			else if (val == LOW_BATTERY_LEVEL_3)
-				thd = POWER_INT3_VOLT;
-#endif
 			pr_info("[%s] your input is %d(%d)\n",
 				__func__, val, thd);
 			exec_low_battery_callback(thd);
@@ -2015,7 +2008,7 @@ int pmic_throttling_dlpt_init(struct platform_device *pdev)
 {
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	struct device_node *np;
-	u32 val;
+	u32 val = 0;
 	char *path;
 
 	path = "/battery";

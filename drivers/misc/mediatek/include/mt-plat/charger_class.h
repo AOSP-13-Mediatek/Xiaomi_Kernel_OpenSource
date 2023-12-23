@@ -1,6 +1,5 @@
 /*
  * Copyright (C) 2015 MediaTek Inc.
- * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -123,6 +122,20 @@ struct charger_ops {
 	int (*kick_direct_charging_wdt)(struct charger_device *dev);
 	int (*set_direct_charging_ibusoc)(struct charger_device *dev, u32 uA);
 	int (*set_direct_charging_vbusov)(struct charger_device *dev, u32 uV);
+
+	int (*set_ibusocp)(struct charger_device *dev, u32 uA);
+	int (*set_vbusovp)(struct charger_device *dev, u32 uV);
+	int (*set_ibatocp)(struct charger_device *dev, u32 uA);
+	int (*set_vbatovp)(struct charger_device *dev, u32 uV);
+	int (*set_vbatovp_alarm)(struct charger_device *dev, u32 uV);
+	int (*reset_vbatovp_alarm)(struct charger_device *dev);
+	int (*set_vbusovp_alarm)(struct charger_device *dev, u32 uV);
+	int (*reset_vbusovp_alarm)(struct charger_device *dev);
+	int (*is_vbuslowerr)(struct charger_device *dev, bool *err);
+	int (*init_chip)(struct charger_device *dev);
+	int (*enable_auto_trans)(struct charger_device *dev, bool en);
+	int (*set_auto_trans)(struct charger_device *dev, u32 uV, bool en);
+
 	int (*set_direct_charging_ibatoc)(struct charger_device *dev, u32 uA);
 	int (*set_direct_charging_vbatov)(struct charger_device *dev, u32 uV);
 	int (*set_direct_charging_vbatov_alarm)(struct charger_device *dev,
@@ -142,6 +155,9 @@ struct charger_ops {
 
 	/* charger type detection */
 	int (*enable_chg_type_det)(struct charger_device *dev, bool en);
+
+	/* hvdcp detection control */
+	int (*enable_hvdcp_det)(struct charger_device *dev, bool en);
 
 	/* run AICL */
 	int (*run_aicl)(struct charger_device *dev, u32 *uA);
@@ -163,6 +179,10 @@ struct charger_ops {
 	int (*get_ibus_adc)(struct charger_device *dev, u32 *ibus);
 	int (*get_psys_adc)(struct charger_device *dev, u32 *psys);
 	int (*get_ibat_adc)(struct charger_device *dev, u32 *ibat);
+	int (*get_vbat_adc)(struct charger_device *dev, u32 *vbat);
+	int (*get_battery_temp)(struct charger_device *dev, int *batt_temp);
+	int (*get_bus_temp)(struct charger_device *dev, int *bus_temp);
+	int (*get_die_temp)(struct charger_device *dev, int *die_temp);
 	int (*get_tchg_adc)(struct charger_device *dev, int *tchg_min,
 		int *tchg_max);
 	int (*get_ts_temp)(struct charger_device *dev, int *value);
@@ -179,7 +199,37 @@ struct charger_ops {
 	int (*enable_hz)(struct charger_device *dev, bool en);
 
 	int (*enable_bleed_discharge)(struct charger_device *dev, bool en);
+	int (*get_hiz_mode)(struct charger_device *dev, int *status);
+	int (*set_hiz_mode)(struct charger_device *dev, bool en);
+	int (*set_recharge_vbat)(struct charger_device *dev, int vol);
 
+	/* XMUSB350 */
+	int (*rerun_apsd)(struct charger_device *dev);
+	int (*mode_select)(struct charger_device *dev, u8 mode);
+	int (*tune_hvdcp_dpdm)(struct charger_device *dev, int pulse);
+	int (*set_vbus_disable)(struct charger_device *dev, bool disable);
+	int (*get_vbus_disable)(struct charger_device *dev, bool *disable);
+	int (*get_chg_type)(struct charger_device *dev, int *type);
+	/* BQ2597x */
+	int (*set_bus_protection)(struct charger_device *dev, int hvdcp3_type);
+	int (*set_present)(struct charger_device *dev, bool present);
+	int (*get_present)(struct charger_device *dev, bool *present);
+	int (*set_bq_chg_done)(struct charger_device *dev, int enable);
+	int (*get_bq_chg_done)(struct charger_device *dev, int *bq_chg_done);
+	int (*set_hv_charge_enable)(struct charger_device *dev, int enable);
+	int (*get_hv_charge_enable)(struct charger_device *dev, int *hv_chg_enable);
+	int (*set_bypass_enable)(struct charger_device *dev, int bypass_en);
+	int (*get_bypass_enable)(struct charger_device *dev, int *bypass_en);
+	int (*set_chg_mode)(struct charger_device *dev, int mode);
+	int (*get_chg_mode)(struct charger_device *dev, int *mode);
+	int (*get_battery_present)(struct charger_device *dev, int *batt_pres);
+	int (*get_vbus_present)(struct charger_device *dev, int *vbus_pres);
+	int (*get_alarm_status)(struct charger_device *dev, int *alarm_status);
+	int (*get_fault_status)(struct charger_device *dev, int *fault_status);
+	int (*get_vbus_error_status)(struct charger_device *dev, int *vbus_error_status);
+	int (*get_reg_status)(struct charger_device *dev, int *reg_status);
+
+	/* K16 */
 	/* For XMUSB350 */
 	int (*update_chgtype)(struct charger_device *chg_dev, int type);
 	int (*qc3_dpdm_pulse)(struct charger_device *chg_dev, int type, int count);
@@ -281,8 +331,22 @@ extern int charger_dev_enable_safety_timer(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_chg_type_det(
 	struct charger_device *charger_dev, bool en);
+extern int charger_dev_enable_hvdcp_det(
+	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_otg(
 	struct charger_device *charger_dev, bool en);
+extern int charger_dev_rerun_apsd(
+	struct charger_device *charger_dev);
+extern int charger_dev_mode_select(
+	struct charger_device *charger_dev, u8 mode);
+extern int charger_dev_tune_hvdcp_dpdm(
+	struct charger_device *charger_dev, int pulse);
+extern int charger_dev_set_vbus_disable(
+	struct charger_device *charger_dev, bool disable);
+extern int charger_dev_get_vbus_disable(
+	struct charger_device *charger_dev, bool *disable);
+extern int charger_dev_get_chg_type(
+	struct charger_device *charger_dev, int *type);
 extern int charger_dev_enable_discharge(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_set_boost_current_limit(
@@ -332,6 +396,14 @@ extern int charger_dev_get_psys(
 	struct charger_device *charger_dev, u32 *psys);
 extern int charger_dev_get_ibat(
 	struct charger_device *charger_dev, u32 *ibat);
+extern int charger_dev_get_vbat(
+	struct charger_device *charger_dev, u32 *vbat);
+extern int charger_dev_get_battery_temp(
+	struct charger_device *charger_dev, int *batt_temp);
+extern int charger_dev_get_bus_temp(
+	struct charger_device *charger_dev, int *bus_temp);
+extern int charger_dev_get_die_temp(
+	struct charger_device *charger_dev, int *die_temp);
 extern int charger_dev_get_temperature(
 	struct charger_device *charger_dev, int *tchg_min,
 		int *tchg_max);
@@ -340,6 +412,24 @@ extern int charger_dev_set_direct_charging_ibusoc(
 	struct charger_device *charger_dev, u32 ua);
 extern int charger_dev_set_direct_charging_vbusov(
 	struct charger_device *charger_dev, u32 uv);
+
+extern int charger_dev_set_ibusocp(struct charger_device *chg_dev, u32 uA);
+extern int charger_dev_set_vbusovp(struct charger_device *chg_dev, u32 uV);
+extern int charger_dev_set_ibatocp(struct charger_device *chg_dev, u32 uA);
+extern int charger_dev_set_vbatovp(struct charger_device *chg_dev, u32 uV);
+extern int charger_dev_set_vbatovp_alarm(struct charger_device *chg_dev,
+					 u32 uV);
+extern int charger_dev_reset_vbatovp_alarm(struct charger_device *chg_dev);
+extern int charger_dev_set_vbusovp_alarm(struct charger_device *chg_dev,
+					 u32 uV);
+extern int charger_dev_reset_vbusovp_alarm(struct charger_device *chg_dev);
+extern int charger_dev_is_vbuslowerr(struct charger_device *chg_dev, bool *err);
+extern int charger_dev_init_chip(struct charger_device *chg_dev);
+extern int charger_dev_enable_auto_trans(struct charger_device *chg_dev,
+					 bool en);
+extern int charger_dev_set_auto_trans(struct charger_device *chg_dev, u32 uV,
+				      bool en);
+
 extern int charger_dev_set_direct_charging_ibatoc(
 	struct charger_device *charger_dev, u32 ua);
 extern int charger_dev_set_direct_charging_vbatov(
@@ -368,9 +458,11 @@ extern int charger_dev_enable_force_typec_otp(struct charger_device *dev,
 					      bool en);
 extern int charger_dev_get_ctd_dischg_status(struct charger_device *dev,
 					     u8 *status);
-
 extern int charger_dev_enable_bleed_discharge(struct charger_device *dev,
 					      bool en);
+extern int charger_dev_get_hiz_mode(struct charger_device *dev, int *status);
+extern int charger_dev_set_hiz_mode(struct charger_device *dev, bool en);
+extern int charger_dev_set_recharge_vbat(struct charger_device *dev, int vol);
 
 /* For buck1 FPWM */
 extern int charger_dev_enable_hidden_mode(struct charger_device *dev, bool en);
@@ -384,6 +476,42 @@ extern int unregister_charger_device_notifier(
 extern int charger_dev_notify(
 	struct charger_device *charger_dev, int event);
 
+extern int charger_dev_set_bus_protection(
+		struct charger_device *dev, int hvdcp3_type);
+extern int charger_dev_set_present(
+		struct charger_device *dev, bool present);
+extern int charger_dev_get_present(
+		struct charger_device *dev, bool *present);
+extern int charger_dev_set_bq_chg_done(
+		struct charger_device *dev, int enable);
+extern int charger_dev_get_bq_chg_done(
+		struct charger_device *dev, int *bq_chg_done);
+extern int charger_dev_set_hv_charge_enable(
+		struct charger_device *dev, int enable);
+extern int charger_dev_get_hv_charge_enable(
+		struct charger_device *dev, int *hv_chg_enable);
+extern int charger_dev_set_bypass_mode_enable(
+		struct charger_device *dev, int bypass_en);
+extern int charger_dev_get_bypass_mode_enable(
+		struct charger_device *dev, int *bypass_en);
+extern int charger_dev_set_chg_mode(
+		struct charger_device *dev, int mode);
+extern int charger_dev_get_chg_mode(
+		struct charger_device *dev, int *mode);
+extern int charger_dev_get_battery_present(
+		struct charger_device *dev, int *batt_pres);
+extern int charger_dev_get_vbus_present(
+		struct charger_device *dev, int *vbus_pres);
+extern int charger_dev_get_alarm_status(
+		struct charger_device *dev, int *alarm_status);
+extern int charger_dev_get_fault_status(
+		struct charger_device *dev, int *fault_status);
+extern int charger_dev_get_vbus_error_status(
+		struct charger_device *chg_dev, int *vbus_error_status);
+extern int charger_dev_get_reg_status(
+		struct charger_device *dev, int *reg_status);
+
+/* K16 */
 /* For MP2762 */
 extern int charger_dev_get_vsys(struct charger_device *dev, u32 *value);
 extern int charger_dev_get_charge_status(struct charger_device *dev, int *value);

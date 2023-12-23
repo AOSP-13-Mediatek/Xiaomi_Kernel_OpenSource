@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2020, The Linux Foundation. All rights reserved.
- * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #ifndef _MI_DISP_LOG_H_
@@ -43,3 +42,4 @@ static inline void disp_log_printk_utc(const char *fmt, ...) {}
 #endif
 
 #endif /* _MI_DISPLOG_H_ */
+

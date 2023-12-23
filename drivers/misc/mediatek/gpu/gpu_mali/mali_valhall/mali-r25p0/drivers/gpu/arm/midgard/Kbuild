@@ -39,7 +39,7 @@ MALI_USE_CSF ?= 0
 MALI_UNIT_TEST ?= 0
 MALI_KERNEL_TEST_API ?= 0
 MALI_COVERAGE ?= 0
-MALI_JIT_PRESSURE_LIMIT_BASE ?= 1
+MALI_JIT_PRESSURE_LIMIT_BASE ?= 0
 #CONFIG_MALI_PLATFORM_NAME ?= "devicetree"
 CONFIG_MALI_PLATFORM_NAME ?= $(CONFIG_MALI_PLATFORM_THIRDPARTY_NAME)
 
@@ -76,6 +76,9 @@ DEFINES += -I$(srctree)/drivers/staging/android
 
 DEFINES += -DMALI_KBASE_BUILD
 
+# arm Ticket: CAS-173191-P7F4D1
+DEFINES += -DCONFIG_MALI_DMA_BUF_LEGACY_COMPAT=1
+
 # Use our defines when compiling
 # MTK Add -I$(src)/include to include ddk linux headers
 ccflags-y += $(DEFINES) -I$(KBASE_PATH)   -I$(KBASE_PLATFORM_PATH) -I$(UMP_PATH) -I$(srctree)/include/linux -I$(src)/include
@@ -90,12 +93,10 @@ endif
 ifeq ($(CONFIG_MACH_MT6877),y)
 	ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6877/include
 endif
-	ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
+ifeq ($(CONFIG_MACH_MT6781),y)
+	ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6781/include
 endif
-
-ifeq ($(CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM), y)
-	include $(srctree)/drivers/misc/mediatek/trusted_mem/Makefile.include
-	ccflags-y += -I$(srctree)/drivers/staging/android/ion
+	ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include
 endif
 
 subdir-ccflags-y += $(DEFINES) -I$(KBASE_PATH)   -I$(KBASE_PLATFORM_PATH) -I$(UMP_PATH) -I$(srctree)/include/linux -I$(src)/include
